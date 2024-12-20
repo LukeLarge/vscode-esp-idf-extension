@@ -18,7 +18,6 @@
 import { EOL } from "os";
 import { join } from "path";
 import { Uri } from "vscode";
-import { readParameter } from "../../idfConfiguration";
 import { appendIdfAndToolsToPath, spawn } from "../../utils";
 import { getVirtualEnvPythonPath } from "../../pythonManager";
 
@@ -32,11 +31,11 @@ export async function getTargetsFromEspIdf(
   workspaceFolder: Uri,
   givenIdfPathDir?: string
 ) {
+  const modifiedEnv = await appendIdfAndToolsToPath(workspaceFolder);
   const idfPathDir = givenIdfPathDir
     ? givenIdfPathDir
-    : readParameter("idf.espIdfPath", workspaceFolder);
+    : modifiedEnv["IDF_PATH"];
   const idfPyPath = join(idfPathDir, "tools", "idf.py");
-  const modifiedEnv = await appendIdfAndToolsToPath(workspaceFolder);
   const pythonBinPath = await getVirtualEnvPythonPath(workspaceFolder);
   const resultTargetArray: IdfTarget[] = [];
 
