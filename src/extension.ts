@@ -173,6 +173,7 @@ import {
 } from "./cmdTreeView/cmdStore";
 import { IdfSetup } from "./views/setup/types";
 import { asyncRemoveEspIdfSettings } from "./uninstall";
+import { OpenOCDErrorMonitor } from "./espIdf/hints/openocdhint";
 
 // Global variables shared by commands
 let workspaceRoot: vscode.Uri;
@@ -3687,6 +3688,9 @@ export async function activate(context: vscode.ExtensionContext) {
   const treeDataProvider = new ErrorHintProvider(context);
   vscode.window.registerTreeDataProvider("errorHints", treeDataProvider);
 
+  const openOCDErrorMonitor = OpenOCDErrorMonitor.init(treeDataProvider, workspaceRoot);
+  await openOCDErrorMonitor.initialize();
+
   vscode.commands.registerCommand("espIdf.searchError", async () => {
     const errorMsg = await vscode.window.showInputBox({
       placeHolder: "Enter the error message",
@@ -3713,7 +3717,7 @@ export async function activate(context: vscode.ExtensionContext) {
     
     // Clear existing error hints if no ESP-IDF diagnostics
     if (espIdfDiagnostics.length === 0) {
-      treeDataProvider.clearErrorHints();
+      treeDataProvider.clearErrorHints(false);
       return;
     }
     
@@ -3726,6 +3730,12 @@ export async function activate(context: vscode.ExtensionContext) {
       await vscode.commands.executeCommand("errorHints.focus");
     }
   };
+
+  context.subscriptions.push({
+    dispose: () => {
+      openOCDErrorMonitor.dispose();
+    }
+  });
 
   // Attach a listener to the diagnostics collection
   context.subscriptions.push(
