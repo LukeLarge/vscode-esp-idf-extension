@@ -207,5 +207,7 @@
   "Warning: Could not fully remove setting {0}: {1}": "Advertencia: No se pudo eliminar completamente la configuración {0}: {1}",
   "ESP-IDF settings removed successfully.": "Configuraciones de ESP-IDF eliminadas exitosamente.",
   "Failed to remove settings: {0}": "Error al eliminar las configuraciones: {0}",
-  "Error: {0}": "Error: {0}"
+  "Error: {0}": "Error: {0}",
+  "🔗 Reference Documentation": "🔗 Documentación de Referencia",
+  "Open {0}": "Abrir {0}"
 }
