@@ -1718,6 +1718,11 @@
       {
         "command": "espIdf.idfReconfigureTask",
         "title": "%espIdf.idfReconfigureTask.title%"
+      },
+      {
+        "command": "espIdf.setClangSettings",
+        "title": "%espIdf.setClangSettings.title%",
+        "category": "ESP-IDF"
       }
     ],
     "breakpoints": [

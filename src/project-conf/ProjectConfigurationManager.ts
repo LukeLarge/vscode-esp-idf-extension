@@ -21,6 +21,7 @@ import { createStatusBarItem } from "../statusBar";
 import { getIdfTargetFromSdkconfig } from "../workspaceConfig";
 import { Logger } from "../logger/logger";
 import { getProjectConfigurationElements } from "./index";
+import { configureClangSettings } from "../clang";
 
 export class ProjectConfigurationManager {
   private readonly configFilePath: string;
@@ -359,6 +360,7 @@ export class ProjectConfigurationManager {
       this.statusBarItems["target"]
     );
     await setCCppPropertiesJsonCompileCommands(this.workspaceRoot);
+    await configureClangSettings(this.workspaceRoot);
     ConfserverProcess.dispose();
   }
 
