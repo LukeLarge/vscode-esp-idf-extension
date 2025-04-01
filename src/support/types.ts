@@ -16,6 +16,7 @@
  * limitations under the License.
  */
 
+import { IdfSetup } from "../eim/types";
 import { ProjectConfElement } from "../project-conf/projectConfiguration";
 
 export class ConfigurationAccess {
@@ -101,6 +102,7 @@ export class reportObj {
   configurationSettings: Configuration;
   configurationAccess: ConfigurationAccess;
   configurationSpacesValidation: ConfigurationSpacesValidation;
+  espIdfSetups: IdfSetup[];
   espIdfToolsVersions: idfToolResult[];
   espIdfVersion: execResult;
   gitVersion: execResult;
