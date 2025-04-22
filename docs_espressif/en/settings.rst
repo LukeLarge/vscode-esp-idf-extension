@@ -13,7 +13,7 @@ This extension contributes the following settings that can be later updated in `
 
 .. note::
 
-    Please note that ``~``, ``%VARNAME%`` and ``$VARNAME`` are not recognized when set on ANY of this extension configuration settings. Instead, you can set any environment variable in the path using ``${env:VARNAME}``, such as ``${env:HOME}``, or refer to other configuration parameter path with ``${config:SETTINGID}``, such as ``${config:idf.espIdfPath}``.
+    Please note that ``~``, ``%VARNAME%`` and ``$VARNAME`` are not recognized when set on ANY of this extension configuration settings. Instead, you can set any environment variable in the path using ``${env:VARNAME}``, such as ``${env:HOME}``, or refer to other configuration parameter path with ``${config:SETTINGID}``, such as ``${config:idf.buildPath}``.
 
 The **idf.saveScope** allows you to specify where to save settings when using commands such as **Set Espressif Device Target** and other commands. Possible values are Global (User Settings), Workspace and WorkspaceFolder. Use the **Select where to Save Configuration Settings** command to choose where to save settings when using this extension commands.
 
