@@ -66,17 +66,6 @@ export async function setIdfTarget(
         if (!selectedTarget) {
           return;
         }
-        const customExtraVars = readParameter(
-          "idf.customExtraVars",
-          workspaceFolder
-        ) as { [key: string]: string };
-        customExtraVars["IDF_TARGET"] = selectedTarget.target;
-        await writeParameter(
-          "idf.customExtraVars",
-          customExtraVars,
-          configurationTarget,
-          workspaceFolder.uri
-        );
         const openOcdScriptsPath = await getOpenOcdScripts(workspaceFolder.uri);
         const boards = await getBoards(
           openOcdScriptsPath,
@@ -96,7 +85,9 @@ export async function setIdfTarget(
           Logger.infoNotify(
             `ESP-IDF board not selected. Remember to set the configuration files for OpenOCD with idf.openOcdConfigs`
           );
-        } else if (selectedBoard && selectedBoard.target) {
+        }
+        await setTargetInIDF(workspaceFolder, selectedTarget);
+        if (selectedBoard && selectedBoard.target) {
           if (selectedBoard.label.indexOf("Custom board") !== -1) {
             const inputBoard = await window.showInputBox({
               placeHolder: "Enter comma-separated configuration files",
@@ -113,7 +104,18 @@ export async function setIdfTarget(
             workspaceFolder.uri
           );
         }
-        await setTargetInIDF(workspaceFolder, selectedTarget);
+
+        const customExtraVars = readParameter(
+          "idf.customExtraVars",
+          workspaceFolder
+        ) as { [key: string]: string };
+        customExtraVars["IDF_TARGET"] = selectedTarget.target;
+        await writeParameter(
+          "idf.customExtraVars",
+          customExtraVars,
+          configurationTarget,
+          workspaceFolder.uri
+        );
       } catch (err) {
         const errMsg =
           err instanceof Error
