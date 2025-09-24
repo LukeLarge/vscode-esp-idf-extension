@@ -2,7 +2,7 @@
   "name": "esp-idf-extension",
   "displayName": "ESP-IDF",
   "description": "Develop and debug applications for Espressif chips with ESP-IDF",
-  "version": "1.9.1",
+  "version": "1.10.3",
   "license": "Apache-2.0",
   "publisher": "espressif",
   "icon": "media/espressif_icon.png",
@@ -53,7 +53,6 @@
     "soc"
   ],
   "activationEvents": [
-    "onCommand:espIdf.createFiles",
     "onCommand:espIdf.addArduinoAsComponentToCurFolder",
     "onCommand:espIdf.createIdfTerminal",
     "onCommand:espIdf.createVsCodeFolder",
@@ -87,7 +86,6 @@
     "onCommand:espIdf.searchInEspIdfDocs",
     "onCommand:espIdf.setup.start",
     "onCommand:espIdf.welcome.start",
-    "onCommand:espIdf.examples.start",
     "onCommand:esp.rainmaker.backend.connect",
     "onCommand:esp.rainmaker.backend.sync",
     "onCommand:espIdf.getEspAdf",
@@ -111,8 +109,6 @@
     "onView:idfPartitionExplorer",
     "onView:espRainmaker",
     "onView:idfComponents",
-    "workspaceContains:**/project_description.json",
-    "workspaceContains:**/sdkconfig",
     "workspaceContains:**/CMakeLists.txt"
   ],
   "main": "./dist/extension",
@@ -277,7 +273,8 @@
           "column": 3,
           "severity": 4,
           "message": 5
-        }
+        },
+        "source": "esp-idf"
       },
       {
         "name": "espIdfLd",
@@ -292,7 +289,8 @@
           "file": 1,
           "line": 2,
           "message": 3
-        }
+        },
+        "source": "esp-idf"
       }
     ],
     "viewsContainers": {
@@ -314,15 +312,19 @@
     "views": {
       "espIdfHints": [
         {
-          "id": "errorHints",
-          "name": "Error Hints",
-          "title": "Error Hints ($errorHints.count$)"
+          "id": "espIdf.errorHints",
+          "name": "%view.idf.errorHints%",
+          "title": "%view.idf.errorHints% ($espIdf.errorHints.count$)"
         }
       ],
       "debug": [
         {
           "name": "%view.debug.peripheral%",
           "id": "espIdf.peripheralView"
+        },
+        {
+          "name": "%view.debug.hexView%",
+          "id": "espIdf.hexView"
         }
       ],
       "idfViewController": [
@@ -399,9 +401,14 @@
       ],
       "view/title": [
         {
+          "command": "espIdf.errorHints.clearAll",
+          "when": "view == espIdf.errorHints",
+          "group": "navigation"
+        },
+        {
           "command": "espIdf.searchError",
           "group": "navigation",
-          "when": "view == errorHints"
+          "when": "view == espIdf.errorHints"
         },
         {
           "command": "espIdf.partition.table.refresh",
@@ -450,6 +457,14 @@
       ],
       "view/item/context": [
         {
+          "command": "espIdf.errorHints.clearBuildErrors",
+          "when": "view == espIdf.errorHints && viewItem == buildError"
+        },
+        {
+          "command": "espIdf.errorHints.clearOpenOCDErrors",
+          "when": "view == espIdf.errorHints && viewItem == openocdError"
+        },
+        {
           "command": "esp.rainmaker.backend.logout",
           "when": "view == espRainmaker && viewItem == account",
           "group": "inline"
@@ -467,6 +482,16 @@
         {
           "command": "esp.rainmaker.backend.update_node_param",
           "when": "view == espRainmaker && viewItem == param",
+          "group": "inline"
+        },
+        {
+          "command": "espIdf.hexView.copyValue",
+          "when": "view == espIdf.hexView && viewItem == debugHexItem",
+          "group": "inline"
+        },
+        {
+          "command": "espIdf.hexView.deleteElement",
+          "when": "view == espIdf.hexView && viewItem == debugHexItem",
           "group": "inline"
         }
       ],
@@ -511,14 +536,16 @@
           "command": "espIdf.cmakeListsEditor.start",
           "group": "navigation"
         }
+      ],
+      "debug/variables/context": [
+        {
+          "command": "espIdf.viewAsHex",
+          "when": "inDebugMode && debugType == 'gdbtarget' && debugState == stopped",
+          "group": "navigation"
+        }
       ]
     },
     "keybindings": [
-      {
-        "command": "espIdf.createFiles",
-        "key": "ctrl+e c",
-        "mac": "cmd+i c"
-      },
       {
         "command": "espIdf.fullClean",
         "key": "ctrl+e x",
@@ -553,6 +580,11 @@
         "command": "espIdf.createIdfTerminal",
         "key": "ctrl+e t",
         "mac": "cmd+i t"
+      },
+      {
+        "command": "espIdf.createClassicMenuconfig",
+        "key": "ctrl+e ctrl+g",
+        "mac": "cmd+i cmd+g"
       },
       {
         "command": "espIdf.selectPort",
@@ -669,13 +701,13 @@
           },
           "idf.port": {
             "type": "string",
-            "default": "/dev/ttyUSB1",
+            "default": "detect",
             "description": "%param.port%",
             "scope": "resource"
           },
           "idf.portWin": {
             "type": "string",
-            "default": "COM1",
+            "default": "detect",
             "description": "%param.port%",
             "scope": "resource"
           },
@@ -789,7 +821,7 @@
           },
           "trace.poll_period": {
             "type": "number",
-            "default": 1,
+            "default": 0,
             "scope": "resource",
             "description": "%trace.poll_period.description%"
           },
@@ -801,7 +833,7 @@
           },
           "trace.stop_tmo": {
             "type": "number",
-            "default": 5,
+            "default": 3,
             "scope": "resource",
             "description": "%trace.stop_tmo.description%"
           },
@@ -1085,11 +1117,14 @@
             "scope": "resource",
             "description": "%param.svdFile%"
           },
-          "idf.deleteComponentsOnFullClean": {
-            "type": "boolean",
-            "default": false,
+          "idf.extraCleanPaths": {
+            "type": "array",
+            "default": [],
             "scope": "resource",
-            "description": "%param.deleteComponentsOnFullClean%"
+            "description": "%param.extraCleanPaths%",
+            "items": {
+              "type": "string"
+            }
           },
           "idf.monitorDelay": {
             "type": "number",
@@ -1229,16 +1264,60 @@
             "scope": "resource",
             "default": [
               "verify",
+              "compress",
+              "skip_loaded",
               "reset"
             ],
             "items": {
               "type": "string"
             }
+          },
+          "idf.unitTestFilePattern": {
+            "type": "string",
+            "description": "%param.unitTestFilePattern.title%",
+            "scope": "resource",
+            "default": "**/test/test_*.c"
+          },
+          "idf.pyTestEmbeddedServices": {
+            "type": "array",
+            "description": "%param.pyTestEmbeddedServices.title%",
+            "scope": "resource",
+            "default": [
+              "esp",
+              "idf"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "idf.serialPortDetectionTimeout": {
+            "type": "number",
+            "default": 60,
+            "scope": "resource",
+            "description": "%param.serialPortDetectionTimeout%"
           }
         }
       }
     ],
     "commands": [
+      {
+        "command": "espIdf.errorHints.clearAll",
+        "title": "%command.errorHints.clearAll.title%",
+        "icon": "$(clear-all)",
+        "category": "ESP-IDF"
+      },
+      {
+        "command": "espIdf.errorHints.clearBuildErrors",
+        "title": "%command.errorHints.clearBuild.title%",
+        "icon": "$(trash)",
+        "category": "ESP-IDF"
+      },
+      {
+        "command": "espIdf.errorHints.clearOpenOCDErrors",
+        "title": "%command.errorHints.clearOpenOCD.title%",
+        "icon": "$(trash)",
+        "category": "ESP-IDF"
+      },
       {
         "command": "espIdf.removeEspIdfSettings",
         "title": "%espIdf.removeEspIdfSettings.title%",
@@ -1246,15 +1325,12 @@
       },
       {
         "command": "espIdf.openWalkthrough",
-        "title": "ESP-IDF: Open Get Started Walkthrough"
+        "title": "ESP-IDF: Open Get Started Walkthrough",
+        "category": "ESP-IDF"
       },
       {
         "command": "espIdf.searchError",
-        "title": "%espIdf.searchError.title%"
-      },
-      {
-        "command": "espIdf.createFiles",
-        "title": "%espIdf.createFiles.title%",
+        "title": "%espIdf.searchError.title%",
         "category": "ESP-IDF"
       },
       {
@@ -1270,6 +1346,11 @@
       {
         "command": "espIdf.createIdfTerminal",
         "title": "%espIdf.createIdfTerminal.title%",
+        "category": "ESP-IDF"
+      },
+      {
+        "command": "espIdf.createClassicMenuconfig",
+        "title": "%espIdf.createClassicMenuconfig.title%",
         "category": "ESP-IDF"
       },
       {
@@ -1293,11 +1374,6 @@
         "category": "ESP-IDF"
       },
       {
-        "command": "espIdf.examples.start",
-        "title": "%espIdf.examples.title%",
-        "category": "ESP-IDF"
-      },
-      {
         "command": "espIdf.cmakeListsEditor.start",
         "title": "%espIdf.cmakeListsEditor.start.title%",
         "category": "ESP-IDF"
@@ -1311,6 +1387,12 @@
       {
         "command": "espIdf.selectMonitorPort",
         "title": "%espIdf.selectMonitorPort.title%",
+        "category": "ESP-IDF",
+        "when": "!isWeb"
+      },
+      {
+        "command": "espIdf.detectSerialPort",
+        "title": "%espIdf.detectSerialPort.title%",
         "category": "ESP-IDF",
         "when": "!isWeb"
       },
@@ -1701,6 +1783,16 @@
         "category": "ESP-IDF"
       },
       {
+        "command": "espIdf.unitTest.buildUnitTestApp",
+        "title": "%espIdf.unitTest.buildUnitTestApp.title%",
+        "category": "ESP-IDF"
+      },
+      {
+        "command": "espIdf.unitTest.flashUnitTestApp",
+        "title": "%espIdf.unitTest.flashUnitTestApp.title%",
+        "category": "ESP-IDF"
+      },
+      {
         "command": "espIdf.saveDefSdkconfig",
         "title": "%espIdf.saveDefSdkconfig.title%",
         "category": "ESP-IDF"
@@ -1718,6 +1810,28 @@
       {
         "command": "espIdf.idfReconfigureTask",
         "title": "%espIdf.idfReconfigureTask.title%"
+      },
+      {
+        "command": "espIdf.viewAsHex",
+        "title": "%espIdf.viewAsHex.title%",
+        "category": "ESP-IDF"
+      },
+      {
+        "command": "espIdf.hexView.copyValue",
+        "title": "%espIdf.hexView.copyValue.title%",
+        "category": "ESP-IDF",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "espIdf.hexView.deleteElement",
+        "title": "%espIdf.hexView.deleteElement.title%",
+        "category": "ESP-IDF",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "espIdf.setClangSettings",
+        "title": "%espIdf.setClangSettings.title%",
+        "category": "ESP-IDF"
       }
     ],
     "breakpoints": [
@@ -1834,6 +1948,11 @@
               "cwd": {
                 "type": "string",
                 "description": "Working directory (cwd) to use when launching gdb. Defaults to the directory of the 'program'"
+              },
+              "debugPort": {
+                "type": "number",
+                "description": "Port for Debug Adapter server. Default: 43476",
+                "default": 43476
               },
               "runOpenOCD": {
                 "type": "boolean",
@@ -2103,6 +2222,11 @@
               "cwd": {
                 "type": "string",
                 "description": "Working directory (cwd) to use when launching gdb. Defaults to the directory of the 'program'"
+              },
+              "debugPort": {
+                "type": "number",
+                "description": "Port for Debug Adapter server. Default: 43476",
+                "default": 43476
               },
               "runOpenOCD": {
                 "type": "boolean",
@@ -2392,12 +2516,13 @@
     "test": "yarn compile && node ./out/test/runTest.js --VERBOSE 2>&1",
     "package": "yarn clean && vsce package --yarn -o esp-idf-extension.vsix",
     "release": "vsce publish --yarn -p ${VS_MARKETPLACE_TOKEN} --packagePath esp-idf-extension.vsix",
-    "open-vsx-release": "ovsx publish esp-idf-extension.vsix -p ${OPENVSX_MARKETPLACE_TOKEN}",
+    "open-vsx-release": "ovsx -p ${OPENVSX_MARKETPLACE_TOKEN} publish --yarn esp-idf-extension.vsix",
+    "open-vsx-prerelease": "ovsx -p ${OPENVSX_MARKETPLACE_TOKEN} publish --yarn --pre-release esp-idf-extension.vsix",
     "clean": "node clean.js",
     "genLocalizationBundle": "npx @vscode/l10n-dev export --outDir ./l10n ./src",
     "webpack": "webpack --mode production",
     "ui-test": "yarn compile && extest setup-and-run -y -i -u -l DEBUG -o testFiles/testWorkspace/.vscode/settings.json 'out/ui-test/*-test.js'",
-    "ci-test": "yarn compile && extest setup-and-run './out/ui-test/*-test.js' -u -s test-resources -o testFiles/testWorkspace/.vscode/settings.json -l DEBUG"
+    "ci-test": "yarn compile && extest setup-and-run './out/ui-test/*-test.js' -u -s test-resources -c min -o testFiles/testWorkspace/.vscode/settings.json -l DEBUG"
   },
   "devDependencies": {
     "@babel/types": "^7.23.0",
@@ -2411,7 +2536,6 @@
     "@types/jsonic": "^0.3.0",
     "@types/marked": "^4.0.2",
     "@types/mocha": "^9.1.0",
-    "@types/nock": "^9.3.1",
     "@types/node": "^20.7.0",
     "@types/plotly.js-dist-min": "^2.3.2",
     "@types/sanitize-html": "^2.6.2",
@@ -2427,6 +2551,7 @@
     "@vscode/extension-telemetry": "0.4.8",
     "@vscode/l10n-dev": "^0.0.35",
     "@vscode/test-electron": "^2.1.2",
+    "@vscode/vsce": "^3.6.0",
     "@vue/compiler-sfc": "^3.3.4",
     "bulma": "^0.9.3",
     "chai": "^4.3.4",
@@ -2440,8 +2565,7 @@
     "jsonic": "^1.0.1",
     "mocha": "^9.2.0",
     "mocha-junit-reporter": "^1.23.3",
-    "nock": "^10.0.6",
-    "ovsx": "^0.3.0",
+    "ovsx": "^0.10.2",
     "prettier": "2.0.2",
     "pretty-quick": "^2.0.1",
     "process": "^0.11.10",
@@ -2453,9 +2577,8 @@
     "style-loader": "^3.3.1",
     "ts-loader": "^9.4.4",
     "typescript": "^5.2.2",
-    "vite": "^4.5.13",
-    "vsce": "^2.6.7",
-    "vscode-extension-tester": "7.3.2",
+    "vite": "^5.4.20",
+    "vscode-extension-tester": "^8.15.0",
     "vue-hot-reload-api": "^2.3.2",
     "vue-loader": "^17.2.2",
     "vue-router": "^4.2.4",
@@ -2465,16 +2588,15 @@
   },
   "dependencies": {
     "@types/js-yaml": "^4.0.5",
+    "@vscode/codicons": "^0.0.36",
     "@vscode/l10n": "^0.0.18",
     "ansi-to-html": "^0.6.11",
     "assert": "^2.1.0",
-    "axios": "^1.8.2",
+    "axios": "^1.12.0",
     "bignumber.js": "^9.0.1",
     "del": "^4.1.1",
     "es6-promisify": "^6.0.0",
-    "follow-redirects": "^1.15.6",
     "fs-extra": "^8.1.0",
-    "https-proxy-agent": "^3.0.0",
     "interactjs": "^1.9.18",
     "marked": "^4.0.12",
     "maska": "^2.1.10",
@@ -2485,7 +2607,7 @@
     "plotly.js-dist-min": "^2.26.1",
     "postcss": "^8.4.31",
     "sanitize-html": "^2.12.1",
-    "serialport": "^12.0.0",
+    "serialport": "^13.0.0",
     "stream-browserify": "^3.0.0",
     "tar-fs": "^2.1.2",
     "tree-kill": "^1.2.2",

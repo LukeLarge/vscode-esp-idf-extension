@@ -17,12 +17,13 @@ import { Logger } from "../logger/logger";
 import { OutputChannel } from "../logger/outputChannel";
 import { INewProjectArgs } from "./newProjectInit";
 import { IComponent } from "../espIdf/idfComponent/IdfComponent";
-import { copy, ensureDir, readFile, writeJSON } from "fs-extra";
+import { copy, ensureDir, readFile, writeFile, writeJSON } from "fs-extra";
 import * as utils from "../utils";
 import { IExample } from "../examples/Example";
 import { setCurrentSettingsInTemplate } from "./utils";
 import { NotificationMode, readParameter } from "../idfConfiguration";
 import { IdfSetup } from "../views/setup/types";
+import { createClangdFile } from "../clang";
 
 export class NewProjectPanel {
   public static currentPanel: NewProjectPanel | undefined;
@@ -167,6 +168,11 @@ export class NewProjectPanel {
             });
           }
           break;
+        case "openResultingProject":
+          if (message.path) {
+            this.openResultingProject(message.path);
+          }
+          break;
         case "requestInitValues":
           if (
             newProjectArgs &&
@@ -299,8 +305,9 @@ export class NewProjectPanel {
             port,
             selectedIdfTarget,
             openOcdConfigs,
-            workspaceFolder
+            vscode.Uri.file(newProjectPath)
           );
+          await createClangdFile(vscode.Uri.file(newProjectPath));
           await writeJSON(settingsJsonPath, settingsJson, {
             spaces: 2,
           });
@@ -323,6 +330,10 @@ export class NewProjectPanel {
               }
             }
           }
+          this.panel.webview.postMessage({
+            command: "projectCreated",
+            resultingProjectPath: newProjectPath,
+          });
         } catch (error) {
           OutputChannel.appendLine(error.message);
           Logger.errorNotify(
@@ -336,20 +347,16 @@ export class NewProjectPanel {
     if (isSkipped) {
       return;
     }
-    const projectCreatedMsg = `Project ${projectName} has been created. Open project in a new window?`;
-    const openProjectChoice = await vscode.window.showInformationMessage(
-      projectCreatedMsg,
-      "Yes",
-      "No"
-    );
+  }
 
-    if (openProjectChoice && openProjectChoice === "Yes") {
-      vscode.commands.executeCommand(
-        "vscode.openFolder",
-        vscode.Uri.file(newProjectPath),
-        true
-      );
-    }
+  private openResultingProject(projectPath: string) {
+    vscode.commands.executeCommand(
+      "vscode.openFolder",
+      vscode.Uri.file(projectPath),
+      true
+    );
+    NewProjectPanel.currentPanel.panel.dispose();
+    NewProjectPanel.currentPanel = undefined;
   }
 
   private async openFolder() {

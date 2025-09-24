@@ -23,10 +23,13 @@ import * as vscode from "vscode";
 import { Logger } from "../logger/logger";
 import { TaskManager } from "../taskManager";
 import { join } from "path";
-import { getIdfTargetFromSdkconfig, updateIdfComponentsTree } from "../workspaceConfig";
+import {
+  getIdfTargetFromSdkconfig,
+  updateIdfComponentsTree,
+} from "../workspaceConfig";
 import { IdfSizeTask } from "../espIdf/size/idfSizeTask";
 import { CustomTask, CustomTaskType } from "../customTasks/customTaskProvider";
-import { readParameter } from "../idfConfiguration";
+import { readParameter, readSerialPort } from "../idfConfiguration";
 import { ESP } from "../config";
 import { createFlashModel } from "../flash/flashModelBuilder";
 import { OutputChannel } from "../logger/outputChannel";
@@ -64,7 +67,7 @@ export async function buildCommand(
       "idf.enableSizeTaskAfterBuildTask",
       workspace
     )) as boolean;
-    if (enableSizeTask && typeof buildType === undefined) {
+    if (enableSizeTask && typeof buildType === "undefined") {
       const sizeTask = new IdfSizeTask(workspace);
       await sizeTask.getSizeInfo();
     }
@@ -78,7 +81,11 @@ export async function buildCommand(
         );
       }
       const adapterTargetName = await getIdfTargetFromSdkconfig(workspace);
-      if (adapterTargetName && adapterTargetName !== "esp32s2" && adapterTargetName !== "esp32s3") {
+      if (
+        adapterTargetName &&
+        adapterTargetName !== "esp32s2" &&
+        adapterTargetName !== "esp32s3"
+      ) {
         return Logger.warnNotify(
           `The selected device target "${adapterTargetName}" is not compatible for DFU, as a result the DFU.bin was not created.`
         );
@@ -89,14 +96,18 @@ export async function buildCommand(
     }
     if (!cancelToken.isCancellationRequested) {
       updateIdfComponentsTree(workspace);
-      Logger.infoNotify("Build Successfully");
+      Logger.infoNotify("Build Successful");
       const flashCmd = await buildFinishFlashCmd(workspace);
       OutputChannel.appendLine(flashCmd, "Build");
       TaskManager.disposeListeners();
     }
   } catch (error) {
     if (error.message === "ALREADY_BUILDING") {
-      return Logger.errorNotify("Already a build is running!", error, "buildCommand");
+      return Logger.errorNotify(
+        "Already a build is running!",
+        error,
+        "buildCommand"
+      );
     }
     if (error.message === "BUILD_TERMINATED") {
       return Logger.warnNotify(`Build is Terminated`);
@@ -114,19 +125,14 @@ export async function buildCommand(
   return continueFlag;
 }
 
-
-
 export async function buildFinishFlashCmd(workspace: vscode.Uri) {
-  const buildPath = readParameter(
-    "idf.buildPath",
-    workspace
-  ) as string;
+  const buildPath = readParameter("idf.buildPath", workspace) as string;
   const flasherArgsPath = join(buildPath, "flasher_args.json");
   const flasherArgsExists = await pathExists(flasherArgsPath);
   if (!flasherArgsExists) {
     return;
   }
-  const port = readParameter("idf.port", workspace);
+  const port = readParameter("idf.port", workspace) as string;
   const flashBaudRate = readParameter("idf.flashBaudRate", workspace);
 
   const flasherArgsModel = await createFlashModel(
@@ -147,15 +153,17 @@ export async function buildFinishFlashCmd(workspace: vscode.Uri) {
     "ESP-IDF: Flash your project in the ESP-IDF Visual Studio Code Extension\n";
   flashString += "or in a ESP-IDF Terminal:\n";
   flashString += "idf.py flash\n";
-  flashString += "or\r\nidf.py -p PORT flash\n";
+  flashString += `or\r\nidf.py ${
+    port && port !== "detect" ? `-p ${port}` : ""
+  } flash\n`;
   flashString += "or\r\n";
   flashString += `python -m esptool --chip ${
     flasherArgsModel.chip
   } -b ${flashBaudRate} --before ${flasherArgsModel.before} --after ${
     flasherArgsModel.after
-  } ${
-    flasherArgsModel.stub === false ? "--no-stub" : ""
-  } --port ${port} write_flash ${flashFiles}\n`;
+  } ${flasherArgsModel.stub === false ? "--no-stub" : ""} ${
+    port && port !== "detect" ? `--port ${port}` : ""
+  } write_flash ${flashFiles}\n`;
   flashString += `or from the "${buildPath}" directory\n`;
   flashString += `python -m esptool --chip ${flasherArgsModel.chip} `;
   flashString += `-b ${flashBaudRate} --before ${flasherArgsModel.before} `;

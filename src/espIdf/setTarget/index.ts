@@ -23,6 +23,8 @@ import {
   WorkspaceFolder,
   window,
   l10n,
+  QuickPickItemKind,
+  debug,
 } from "vscode";
 import {
   NotificationMode,
@@ -31,10 +33,25 @@ import {
 } from "../../idfConfiguration";
 import { Logger } from "../../logger/logger";
 import { OutputChannel } from "../../logger/outputChannel";
-import { getBoards, getOpenOcdScripts } from "../openOcd/boardConfiguration";
-import { getTargetsFromEspIdf } from "./getTargets";
+import { selectOpenOcdConfigFiles } from "../openOcd/boardConfiguration";
+import { getTargetsFromEspIdf, IdfTarget } from "./getTargets";
 import { setTargetInIDF } from "./setTargetInIdf";
 import { updateCurrentProfileIdfTarget } from "../../project-conf";
+import { DevkitsCommand } from "./DevkitsCommand";
+
+export let isSettingIDFTarget = false;
+
+export interface ISetTargetQuickPickItems {
+  label: string;
+  idfTarget?: IdfTarget;
+  boardInfo?: {
+    location: string;
+    config_files: string[];
+  };
+  description?: string;
+  isConnected?: boolean;
+  kind?: QuickPickItemKind;
+}
 
 export async function setIdfTarget(
   placeHolderMsg: string,
@@ -44,6 +61,11 @@ export async function setIdfTarget(
   if (!workspaceFolder) {
     return;
   }
+  if (isSettingIDFTarget) {
+    Logger.info("setTargetInIDF is already running.");
+    return;
+  }
+  isSettingIDFTarget = true;
 
   const notificationMode = readParameter(
     "idf.notificationMode",
@@ -63,59 +85,127 @@ export async function setIdfTarget(
     async (progress: Progress<{ message: string; increment: number }>) => {
       try {
         const targetsFromIdf = await getTargetsFromEspIdf(workspaceFolder.uri);
-        const selectedTarget = await window.showQuickPick(targetsFromIdf);
+        let connectedBoards: ISetTargetQuickPickItems[] = [];
+
+        const isDebugging = debug.activeDebugSession !== undefined;
+
+        if (!isDebugging) {
+          try {
+            const devkitsCmd = new DevkitsCommand(workspaceFolder.uri);
+            const scriptPath = await devkitsCmd.getScriptPath();
+
+            if (scriptPath) {
+              const devkitsOutput = await devkitsCmd.runDevkitsScript();
+              if (devkitsOutput) {
+                const parsed = JSON.parse(devkitsOutput);
+                if (parsed && Array.isArray(parsed.boards)) {
+                  connectedBoards = parsed.boards.map(
+                    (b: any) =>
+                      ({
+                        label: b.name,
+                        idfTarget: targetsFromIdf.find(
+                          (t) => t.target === b.target
+                        ),
+                        description: b.description,
+                        detail: `Status: CONNECTED${
+                          b.location ? `   Location: ${b.location}` : ""
+                        }`,
+                        isConnected: true,
+                        boardInfo: b,
+                      } as ISetTargetQuickPickItems)
+                  );
+                }
+              }
+            } else {
+              Logger.info(
+                "Devkit detection script not available. A default list of targets will be displayed instead."
+              );
+            }
+          } catch (e) {
+            Logger.info(
+              "No connected boards detected or error running DevkitsCommand: " +
+                (e && e.message ? e.message : e)
+            );
+          }
+        } else {
+          Logger.info(
+            "Connected ESP-IDF devkit detection is skipped while debugging. You can still select a target manually."
+          );
+        }
+        let quickPickItems: ISetTargetQuickPickItems[] = [];
+        const defaultBoards: ISetTargetQuickPickItems[] = targetsFromIdf.map(
+          (t) => ({
+            label: t.label,
+            idfTarget: t,
+            description: t.isPreview ? "Preview target" : undefined,
+            isConnected: false,
+          })
+        );
+
+        quickPickItems =
+          connectedBoards.length > 0
+            ? [
+                ...connectedBoards,
+                { kind: QuickPickItemKind.Separator, label: "Default Boards" },
+                ...defaultBoards,
+              ]
+            : defaultBoards;
+        const selectedTarget = await window.showQuickPick(quickPickItems, {
+          placeHolder: placeHolderMsg,
+        });
         if (!selectedTarget) {
           return;
         }
+        if (selectedTarget.isConnected && selectedTarget.boardInfo) {
+          // Directly set OpenOCD configs for connected board
+          const configFiles = selectedTarget.boardInfo.config_files || [];
+          await writeParameter(
+            "idf.openOcdConfigs",
+            configFiles,
+            configurationTarget,
+            workspaceFolder.uri
+          );
+          // Store USB location if available
+          if (selectedTarget.boardInfo.location) {
+            const customExtraVars = readParameter(
+              "idf.customExtraVars",
+              workspaceFolder
+            ) as { [key: string]: string };
+            const location = selectedTarget.boardInfo.location.replace(
+              "usb://",
+              ""
+            );
+            customExtraVars["OPENOCD_USB_ADAPTER_LOCATION"] = location;
+            await writeParameter(
+              "idf.customExtraVars",
+              customExtraVars,
+              configurationTarget,
+              workspaceFolder.uri
+            );
+          }
+        } else {
+          await selectOpenOcdConfigFiles(
+            workspaceFolder.uri,
+            selectedTarget.idfTarget.target
+          );
+        }
+
+        await setTargetInIDF(workspaceFolder, selectedTarget.idfTarget);
         const customExtraVars = readParameter(
           "idf.customExtraVars",
           workspaceFolder
         ) as { [key: string]: string };
-        customExtraVars["IDF_TARGET"] = selectedTarget.target;
+        customExtraVars["IDF_TARGET"] = selectedTarget.idfTarget.target;
         await writeParameter(
           "idf.customExtraVars",
           customExtraVars,
           configurationTarget,
           workspaceFolder.uri
         );
-        await updateCurrentProfileIdfTarget(selectedTarget.target, workspaceFolder.uri);
-        const openOcdScriptsPath = await getOpenOcdScripts(workspaceFolder.uri);
-        const boards = await getBoards(
-          openOcdScriptsPath,
-          selectedTarget.target
+        await updateCurrentProfileIdfTarget(
+          selectedTarget.idfTarget.target,
+          workspaceFolder.uri
         );
-        const choices = boards.map((b) => {
-          return {
-            description: `${b.description} (${b.configFiles})`,
-            label: b.name,
-            target: b.configFiles,
-          };
-        });
-        const selectedBoard = await window.showQuickPick(choices, {
-          placeHolder: "Enter OpenOCD Configuration File Paths list",
-        });
-        if (!selectedBoard) {
-          Logger.infoNotify(
-            `ESP-IDF board not selected. Remember to set the configuration files for OpenOCD with idf.openOcdConfigs`
-          );
-        } else if (selectedBoard && selectedBoard.target) {
-          if (selectedBoard.label.indexOf("Custom board") !== -1) {
-            const inputBoard = await window.showInputBox({
-              placeHolder: "Enter comma-separated configuration files",
-              value: selectedBoard.target.join(","),
-            });
-            if (inputBoard) {
-              selectedBoard.target = inputBoard.split(",");
-            }
-          }
-          await writeParameter(
-            "idf.openOcdConfigs",
-            selectedBoard.target,
-            configurationTarget,
-            workspaceFolder.uri
-          );
-        }
-        await setTargetInIDF(workspaceFolder, selectedTarget);
       } catch (err) {
         const errMsg =
           err instanceof Error
@@ -129,6 +219,8 @@ export async function setIdfTarget(
           Logger.errorNotify(errMsg, err, "setIdfTarget");
           OutputChannel.appendLine(errMsg);
         }
+      } finally {
+        isSettingIDFTarget = false;
       }
     }
   );

@@ -97,7 +97,7 @@ These icons will be used in the steps below showing common ESP-IDF use cases:
 
 10. Make sure to configure your drivers as mentioned in ESP-IDF [Configure JTAG Interface](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-guides/jtag-debugging/configure-ft2232h-jtag.html) documentation.
 
-11. Before debugging your device, select the device OpenOCD board configuration files by pressing <kbd>F1</kbd> and typing **ESP-IDF: Select OpenOCD Board Configuration**. You can test the connection by clicking status bar icon ![openocd](./media/readme/openocd.png) or pressing <kbd>F1</kbd> and typing **ESP-IDF: OpenOCD Manager**. The output is shown in the menu `View` -> `Output` and choose `ESP-IDF` from the dropdown list.
+11. Before debugging your device, if you are using a connected ESP-IDF development board, the OpenOCD configuration will be automatically selected based on your connected board, including the USB location if available (requires OpenOCD version v0.12.0-esp32-20240821 or higher). Otherwise, you can manually select the device OpenOCD board configuration files by pressing <kbd>F1</kbd> and typing **ESP-IDF: Select OpenOCD Board Configuration**. You can test the connection by clicking status bar icon ![openocd](./media/readme/openocd.png) or pressing <kbd>F1</kbd> and typing **ESP-IDF: OpenOCD Manager**. The output is shown in the menu `View` -> `Output` and choose `ESP-IDF` from the dropdown list.
 
     > **NOTE:** You can start or stop the OpenOCD in Visual Studio Code using the **ESP-IDF: OpenOCD Manager** command or by clicking the `OpenOCD Server (Running | Stopped)` button in the status bar.
 
@@ -159,19 +159,13 @@ Press <kbd>F1</kbd> or click menu `View` -> `Command Palette...` to show Visual 
         </tr>
         <tr>
             <td>Pick a Workspace Folder</td>
-            <td>When using a Visual Studio Code workspace with multiple folders, this command allows you to choose which workspace folder to apply this extension’s commands to.
+            <td>When using a Visual Studio Code workspace with multiple folders, this command allows you to choose which workspace folder to apply this extension's commands to.
             More information in <a href="https://docs.espressif.com/projects/vscode-esp-idf-extension/en/latest/additionalfeatures/multiple-projects.html">working with multiple projects</a>.</td>
             <td></td>
             <td></td>
         </tr>
         <tr>
-            <td rowspan=11 align="center">Basic</td>
-            <td>Show Example Projects</td>
-            <td>Launch UI to show examples from selected framework and allow you to create a project from them. This command will show frameworks already configured in the extension, so to view ESP-Rainmaker examples, you need to run the <strong>Install ESP-Rainmaker</strong> first (or set the equivalent setting idf.espRainmakerPath), and then execute this command to see the examples.</td>
-            <td></td>
-            <td></td>
-        </tr>
-        <tr>
+            <td rowspan=10 align="center">Basic</td>
             <td>Set Espressif Device Target</td>
             <td>This will set the target for the current project (IDF_TARGET). Similar to <strong>idf.py set-target</strong>. For example, if you want to use ESP32 or ESP32-C3, you need to execute this command.</td>
             <td></td>
@@ -203,7 +197,7 @@ Press <kbd>F1</kbd> or click menu `View` -> `Command Palette...` to show Visual 
         </tr>
         <tr>
             <td>Flash Your Project</td>
-            <td>Write binary data to the ESP’s flash chip from your current ESP-IDF project. This command will use either UART, DFU or JTAG based on <strong>idf.flashType</strong>.</td>
+            <td>Write binary data to the ESP's flash chip from your current ESP-IDF project. This command will use either UART, DFU or JTAG based on <strong>idf.flashType</strong>.</td>
             <td><kbd>⌘</kbd> <kbd>I</kbd> <kbd>F</kbd></td>
             <td><kbd>Ctrl</kbd> <kbd>E</kbd> <kbd>F</kbd></td>
         </tr>
@@ -233,19 +227,7 @@ Press <kbd>F1</kbd> or click menu `View` -> `Command Palette...` to show Visual 
             <td><kbd>Ctrl</kbd> <kbd>E</kbd> <kbd>D</kbd></td>
         </tr>
         <tr>
-            <td rowspan=5 align="center">Project creation</td>
-            <td>Show Example Projects</td>
-            <td>Launch UI to show examples from selected framework and allow you to create a project from them. This command will show frameworks already configured in the extension, so to view ESP-Rainmaker examples, you need to run the <strong>Install ESP-Rainmaker</strong> first (or set the equivalent setting idf.espRainmakerPath), and then execute this command to see the examples.</td>
-            <td></td>
-            <td></td>
-        </tr>
-        <tr>
-            <td>Create Project from Extension Template</td>
-            <td>Create an ESP-IDF project using one of the extension template projects.</td>
-            <td><kbd>⌘</kbd> <kbd>I</kbd> <kbd>C</kbd></td>
-            <td><kbd>Ctrl</kbd> <kbd>E</kbd> <kbd>C</kbd></td>
-        </tr>
-        <tr>
+            <td rowspan=4 align="center">Project creation</td>
             <td>Create New ESP-IDF Component</td>
             <td>Create a new component in the current directory based on ESP-IDF component template.</td>
             <td></td>
@@ -272,25 +254,25 @@ Press <kbd>F1</kbd> or click menu `View` -> `Command Palette...` to show Visual 
         </tr>
         <tr>
             <td>Flash Your Project</td>
-            <td>Write binary data to the ESP’s flash chip from your current ESP-IDF project. This command will use either UART, DFU or JTAG based on <strong>idf.flashType</strong></td>
+            <td>Write binary data to the ESP's flash chip from your current ESP-IDF project. This command will use either UART, DFU or JTAG based on <strong>idf.flashType</strong></td>
             <td><kbd>⌘</kbd> <kbd>I</kbd> <kbd>F</kbd></td>
             <td><kbd>Ctrl</kbd> <kbd>E</kbd> <kbd>F</kbd></td>
         </tr>
         <tr>
             <td>Flash (DFU) Your Project</td>
-            <td>Write binary data to the ESP’s flash chip from your current ESP-IDF project using DFU. Only for ESP32-S2 and ESP32-S3. </td>
+            <td>Write binary data to the ESP's flash chip from your current ESP-IDF project using DFU. Only for ESP32-S2 and ESP32-S3. </td>
             <td></td>
             <td></td>
         </tr>
         <tr>
             <td>Flash (UART) Your Project</td>
-            <td>Write binary data to the ESP’s flash chip from your current ESP-IDF project using esptool.py.</td>
+            <td>Write binary data to the ESP's flash chip from your current ESP-IDF project using esptool.py.</td>
             <td></td>
             <td></td>
         </tr>
         <tr>
             <td>Flash (with JTAG)</td>
-            <td>Write binary data to the ESP’s flash chip from your current ESP-IDF project using OpenOCD JTAG.</td>
+            <td>Write binary data to the ESP's flash chip from your current ESP-IDF project using OpenOCD JTAG.</td>
             <td></td>
             <td></td>
         </tr>
@@ -385,13 +367,13 @@ Press <kbd>F1</kbd> or click menu `View` -> `Command Palette...` to show Visual 
         <tr>
             <td rowspan=2 align="center">eFuse</td>
             <td>Get eFuse Summary</td>
-            <td>Retrieve a list of eFuses and their corresponding values from the chip currently connected to the serial port.</td>
+            <td>Retrieve a list of eFuses and their corresponding values from the chip currently connected to the serial port and display in the <a href="https://docs.espressif.com/projects/vscode-esp-idf-extension/en/latest/additionalfeatures/efuse.html">ESP Explorer EFUSEEXPLORER</a>.</td>
             <td></td>
             <td></td>
         </tr>
         <tr>
             <td>Clear eFuse Summary</td>
-            <td>Clear the eFuse Summary tree from ESP Explorer EFUSEEXPLORER.</td>
+            <td>Clear the eFuse Summary tree from <a href="https://docs.espressif.com/projects/vscode-esp-idf-extension/en/latest/additionalfeatures/efuse.html">ESP Explorer EFUSEEXPLORER</a>.</td>
             <td></td>
             <td></td>
         </tr>
@@ -452,6 +434,20 @@ Press <kbd>F1</kbd> or click menu `View` -> `Command Palette...` to show Visual 
             <td>Launch a UI to configure your ESP-IDF project settings. This is equivalent to <strong>idf.py menuconfig</strong>.</td>
             <td><kbd>⌘</kbd> <kbd>I</kbd> <kbd>G</kbd></td>
             <td><kbd>Ctrl</kbd> <kbd>E</kbd> <kbd>G</kbd></td>
+        </tr>
+        <tr>
+            <td rowspan=2 align="center">Unit Testing</td>
+            <td>"Unit Test: Build Unit Test App"</td>
+            <td>Copy the unit test app in the current project, build the current project. More information in <a href="https://docs.espressif.com/projects/vscode-esp-idf-extension/en/latest/additionalfeatures/unit-testing.html">Unit testing documentation</a>.</td>
+            <td></td>
+            <td></td>
+        </tr>
+        <tr>
+            <td rowspan=2 align="center">Unit Testing</td>
+            <td>Unit Test: Flash Unit Test App</td>
+            <td>Flash the unit test application to the connected device. More information in <a href="https://docs.espressif.com/projects/vscode-esp-idf-extension/en/latest/additionalfeatures/unit-testing.html">Unit testing documentation</a>.</td>
+            <td></td>
+            <td></td>
         </tr>
         <tr>
             <td rowspan=2 align="center">Unit Testing</td>
@@ -563,7 +559,7 @@ See an example in the [debugging](https://docs.espressif.com/projects/vscode-esp
 
 ## Available Tasks in `tasks.json`
 
-A template `tasks.json` is included when creating a project using **ESP-IDF: Create Project from Extension Template**. These tasks can be executed by pressing <kbd>F1</kbd>, writing `Tasks: Run task` and selecting one of the following:
+A template `tasks.json` is included when creating a project using **ESP-IDF: New Project**. These tasks can be executed by pressing <kbd>F1</kbd>, writing `Tasks: Run task` and selecting one of the following:
 
 1. `Build` - Build Project
 2. `Set Target to esp32`
@@ -580,9 +576,9 @@ Note that for OpenOCD tasks, you need to define `OpenOCD_SCRIPTS` in your system
 
 If something is not working, please check for any error on one of these:
 
-> **NOTE:** Use `idf.OpenOCDDebugLevel` configuration setting to 3 or more to show debug logging in OpenOCD server output.
+> **NOTE:** Set `idf.OpenOCDDebugLevel` configuration setting to 3 or more in your <project-directory>/.vscode/settings.json to show debug level logs of OpenOCD server  in `ESP-IDF` output.
 
-> **NOTE:** Use `logLevel` in your <project-directory>/.vscode/launch.json to 3 or more to show more debug adapter output.
+> **NOTE:** Set `verbose: true` in your <project-directory>/.vscode/launch.json for more detailed debug adapter output.
 
 1. In Visual Studio Code select menu **View** > **Output** > **ESP-IDF**. This output information is useful to know what is happening in the extension.
 2. In Visual Studio Code select menu **View** > **Command Palette...** and type `ESP-IDF: Doctor Command` to generate a report of your environment configuration and it will be copied in your clipboard to paste anywhere.
@@ -593,7 +589,18 @@ If something is not working, please check for any error on one of these:
 
 4. In Visual Studio Code, select menu **Help** > **Toggle Developer Tools** and copy any error in the Console tab related to this extension.
 
+5. In Visual Studio Code select menu **View** > **Output** > **Extension Host**. This output information is useful to know what is happening during the extensions activation. If no extension command work, you could share the output here to see the error stack.
+
 5. Visual Studio Code allows you to configure settings at different levels: **Global (User Settings)**, **Workspace** and **Workspace Folder**, so make sure your project has the right settings. The `ESP-IDF: Doctor command` result might give the values from user settings instead of the workspace folder settings.
+
+    - Workspace folder configuration settings are defined in ``${workspaceFolder}/.vscode/settings.json``
+    - Workspace configuration settings are defined in the workspace's ``<name>.code-workspace`` file
+    - User settings defined in ``settings.json``
+        - **Windows**: ``%APPDATA%\Code\User\settings.json``
+        - **MacOS**: ``$HOME/Library/Application Support/Code/User/settings.json``
+        - **Linux**: ``$HOME/.config/Code/User/settings.json``
+
+This extension uses the ``idf.saveScope`` configuration setting (which can only be defined in User Settings) to specify where to save settings for features such as the Setup Wizard. You can modify this using the ``ESP-IDF: Select where to Save Configuration Settings`` command.
 
 6. Refer to the [OpenOCD troubleshooting FAQ](https://github.com/espressif/OpenOCD-esp32/wiki/Troubleshooting-FAQ) for help with application tracing, debugging, or other OpenOCD-related issues that may appear in the OpenOCD output.
 

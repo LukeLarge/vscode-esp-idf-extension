@@ -15,6 +15,7 @@ get_serial_list.py
 *.vsix
 export.ps1
 export.bat
+*.code-profile
 
 #dirs
 .vscode
@@ -29,3 +30,4 @@ esp_debug_adapter/
 external/
 test-resources/
 docs_espressif/
+profiles

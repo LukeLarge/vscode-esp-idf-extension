@@ -17,10 +17,8 @@
  */
 
 import { expect } from "chai";
-import { spawn } from "child_process";
-import { readJSON } from "fs-extra";
-import { EOL } from "os";
-import { delimiter, join, sep } from "path";
+import { pathExists, stat } from "fs-extra";
+import { delimiter, dirname, join, sep } from "path";
 import { By, EditorView, WebView, Workbench } from "vscode-extension-tester";
 
 describe("Configure extension", () => {
@@ -47,33 +45,24 @@ describe("Configure extension", () => {
     workDirectory: string,
     env: NodeJS.ProcessEnv
   ) {
-    const cmd = process.platform === "win32" ? "where" : "which";
-
-    return new Promise<string>((resolve, reject) => {
-      const options = {
-        cwd: workDirectory,
-        env,
-      };
-      const child = spawn(cmd, [binaryName], options);
-      let buff = Buffer.alloc(0);
-      const sendToBuffer = (data: Buffer) => {
-        buff = Buffer.concat([buff, data]);
-      };
-
-      child.stdout.on("data", sendToBuffer);
-      child.stderr.on("data", sendToBuffer);
-
-      child.on("exit", (code) => {
-        if (code !== 0) {
-          const err = new Error(
-            `non zero exit code ${code}. ${EOL + EOL + buff}`
-          );
-          console.error(err.message);
-          return reject(err);
+    let pathNameInEnv: string = Object.keys(process.env).find(
+      (k) => k.toUpperCase() == "PATH"
+    );
+    const pathDirs = env[pathNameInEnv].split(delimiter);
+    for (const pathDir of pathDirs) {
+      let binaryPath = join(pathDir, binaryName);
+      if (process.platform === "win32" && !binaryName.endsWith(".exe")) {
+        binaryPath = `${binaryPath}.exe`;
+      }
+      const doesPathExists = await pathExists(binaryPath);
+      if (doesPathExists) {
+        const pathStats = await stat(binaryPath);
+        if (pathStats.isFile() && pathStats.mode & 0o111) {
+          return binaryPath;
         }
-        return resolve(buff.toString());
-      });
-    });
+      }
+    }
+    return "";
   }
 
   async function selectEspIdfVersion(view: WebView) {
@@ -168,9 +157,7 @@ describe("Configure extension", () => {
       By.xpath(`.//h2[@data-config-id='setup-is-finished']`)
     );
     const setupFinishedText = await setupFinishedElement.getText();
-    expect(setupFinishedText).to.be.equal(
-      "All settings have been configured."
-    );
+    expect(setupFinishedText).to.be.equal("All settings have been configured.");
     if (view) {
       await view.switchBack();
       await new EditorView().closeAllEditors();
@@ -206,9 +193,6 @@ describe("Configure extension", () => {
     await idfToolsSelectChoices[idfToolsSelectChoices.length - 1].click();
 
     // Get current settings
-    const settingsJsonObj = await readJSON(
-      join(__dirname, "../../test-resources/settings/User/settings.json")
-    );
     const modifiedEnv: { [key: string]: string } = <{ [key: string]: string }>(
       Object.assign({}, process.env)
     );
@@ -227,11 +211,9 @@ describe("Configure extension", () => {
       modifiedEnv
     );
     const xtensaEsp32Tool = await view.findWebElement(
-      By.id("xtensa-esp32-elf")
+      By.id("xtensa-esp-elf")
     );
-    const expectedXtensaEsp32Path = xtensaEsp32Path
-      .trim()
-      .replace(sep + "bin" + sep + "xtensa-esp32-elf-gcc", sep + "bin");
+    const expectedXtensaEsp32Path = dirname(xtensaEsp32Path);
     const actualXtensaEsp32Path = await xtensaEsp32Tool.getAttribute("value");
     expect(expectedXtensaEsp32Path).to.be.equal(actualXtensaEsp32Path);
 
@@ -248,9 +230,7 @@ describe("Configure extension", () => {
       By.xpath(`.//h2[@data-config-id='setup-is-finished']`)
     );
     const setupFinishedText = await setupFinishedElement.getText();
-    expect(setupFinishedText).to.be.equal(
-      "All settings have been configured."
-    );
+    expect(setupFinishedText).to.be.equal("All settings have been configured.");
     if (view) {
       await view.switchBack();
       await new EditorView().closeAllEditors();
@@ -287,9 +267,7 @@ describe("Configure extension", () => {
       By.xpath(`.//h2[@data-config-id='setup-is-finished']`)
     );
     const setupFinishedText = await setupFinishedElement.getText();
-    expect(setupFinishedText).to.be.equal(
-      "All settings have been configured."
-    );
+    expect(setupFinishedText).to.be.equal("All settings have been configured.");
 
     if (view) {
       await view.switchBack();

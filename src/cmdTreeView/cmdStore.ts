@@ -28,7 +28,7 @@ export interface IDFCommandDescription {
 export enum IDFWebCommandKeys {
   Flash = "espIdfWeb.flash",
   Monitor = "espIdfWeb.monitor",
-  FlashAndMonitor = "espIdfWeb.flashAndMonitor"
+  FlashAndMonitor = "espIdfWeb.flashAndMonitor",
 }
 
 export enum CommandKeys {
@@ -54,12 +54,10 @@ export enum CommandKeys {
 
 export enum AdvancedCommandKeys {
   Setup = "espIdf.setup.start",
-  Examples = "espIdf.examples.start",
   NewProject = "espIdf.newProject.start",
   Size = "espIdf.size",
   EraseFlash = "espIdf.eraseFlash",
   DoctorCommand = "espIdf.doctorCommand",
-  CreateFromIDFTemplate = "espIdf.createFiles",
   GetADF = "espIdf.getEspAdf",
   GetMDF = "espIdf.getEspMdf",
   GetEspMatter = "espIdf.getEspMatter",
@@ -74,6 +72,7 @@ export enum AdvancedCommandKeys {
   UartFlash = "espIdf.flashUart",
   DfuFlash = "espIdf.flashDFU",
   WebsocketMonitor = "espIdf.launchWSServerAndMonitor",
+  ClassicMenuconfig = "espIdf.createClassicMenuconfig",
 }
 
 export function createAdvancedCommandDictionary(): Record<
@@ -85,11 +84,6 @@ export function createAdvancedCommandDictionary(): Record<
       checkboxState: undefined,
       iconId: "extensions",
       tooltip: l10n.t("Configure ESP-IDF Extension"),
-    },
-    [AdvancedCommandKeys.Examples]: {
-      checkboxState: undefined,
-      iconId: "book",
-      tooltip: l10n.t("Show Examples"),
     },
     [AdvancedCommandKeys.NewProject]: {
       checkboxState: undefined,
@@ -110,11 +104,6 @@ export function createAdvancedCommandDictionary(): Record<
       checkboxState: undefined,
       iconId: "close-all",
       tooltip: l10n.t("Erase Flash"),
-    },
-    [AdvancedCommandKeys.CreateFromIDFTemplate]: {
-      checkboxState: undefined,
-      iconId: "add",
-      tooltip: l10n.t("Create ESP-IDF From Extension Templates"),
     },
     [AdvancedCommandKeys.GetADF]: {
       checkboxState: undefined,
@@ -186,6 +175,11 @@ export function createAdvancedCommandDictionary(): Record<
       iconId: "device-desktop",
       tooltip: l10n.t("Launch Websocket server and IDF Monitor"),
     },
+    [AdvancedCommandKeys.ClassicMenuconfig]: {
+      checkboxState: undefined,
+      iconId: "gear",
+      tooltip: l10n.t("Classic Menuconfig"),
+    },
   };
 }
 
@@ -216,7 +210,7 @@ export function createCommandDictionary(): Record<
         TreeItemCheckboxState.Checked
       ),
       iconId: "star-empty",
-      tooltip: l10n.t("ESP-IDF: Select Flash Method"),
+      tooltip: l10n.t("Select Flash Method"),
     },
     [CommandKeys.SelectSerialPort]: {
       checkboxState: ESP.GlobalConfiguration.store.get<TreeItemCheckboxState>(
@@ -296,7 +290,7 @@ export function createCommandDictionary(): Record<
         TreeItemCheckboxState.Checked
       ),
       iconId: "flame",
-      tooltip: l10n.t("ESP-IDF: Build, Flash and Monitor"),
+      tooltip: l10n.t("Build, Flash and Monitor"),
     },
     [CommandKeys.OpenOCD]: {
       checkboxState: ESP.GlobalConfiguration.store.get<TreeItemCheckboxState>(
@@ -304,7 +298,7 @@ export function createCommandDictionary(): Record<
         TreeItemCheckboxState.Checked
       ),
       iconId: "server-environment",
-      tooltip: l10n.t("[OpenOCD Server]"),
+      tooltip: l10n.t("OpenOCD Server"),
     },
     [CommandKeys.Debug]: {
       checkboxState: ESP.GlobalConfiguration.store.get<TreeItemCheckboxState>(
@@ -312,7 +306,7 @@ export function createCommandDictionary(): Record<
         TreeItemCheckboxState.Checked
       ),
       iconId: "debug-alt",
-      tooltip: l10n.t("Debug"),
+      tooltip: l10n.t("Launch Debug"),
     },
     [CommandKeys.IDFTerminal]: {
       checkboxState: ESP.GlobalConfiguration.store.get<TreeItemCheckboxState>(

@@ -36,16 +36,21 @@ import { Logger } from "../logger/logger";
 
 export async function installIdfGit(
   idfToolsDir: string,
+  mirror: ESP.IdfMirror,
   progress?: Progress<{ message: string; increment?: number }>,
   cancelToken?: CancellationToken
 ) {
   const downloadManager = new DownloadManager(idfToolsDir);
   const installManager = new InstallManager(idfToolsDir);
-  const idfGitZipPath = join(
-    idfToolsDir,
-    "dist",
-    basename(ESP.URL.IDF_EMBED_GIT.IDF_EMBED_GIT_URL)
-  );
+  let gitURLToUse =
+    mirror === ESP.IdfMirror.Github
+      ? ESP.URL.IDF_EMBED_GIT.GITHUB_EMBED_GIT_URL
+      : ESP.URL.IDF_EMBED_GIT.IDF_EMBED_GIT_URL;
+  const gitSize: number =
+    mirror === ESP.IdfMirror.Github
+      ? ESP.URL.IDF_EMBED_GIT.GITHUB_EMBED_GIT_SIZE
+      : ESP.URL.IDF_EMBED_GIT.IDF_EMBED_GIT_SIZE;
+  const idfGitZipPath = join(idfToolsDir, "dist", basename(gitURLToUse));
   const idfGitDestPath = join(
     idfToolsDir,
     "tools",
@@ -54,7 +59,7 @@ export async function installIdfGit(
   );
   const resultGitPath = join(idfGitDestPath, "cmd", "git.exe");
   const pkgProgress = new PackageProgress(
-    basename(ESP.URL.IDF_EMBED_GIT.IDF_EMBED_GIT_URL),
+    basename(gitURLToUse),
     sendIdfGitDownloadProgress,
     null,
     sendIdfGitDownloadDetail,
@@ -73,23 +78,18 @@ export async function installIdfGit(
     }
   }
 
-  const gitZipPathExists = await pathExists(idfGitZipPath);
-  if (gitZipPathExists) {
-    const existingMsg = `Using existing ${idfGitZipPath}`;
-    OutputChannel.appendLine(existingMsg);
-    Logger.info(existingMsg);
-  } else {
-    const msgDownload = `Downloading ${idfGitZipPath}...`;
-    progress.report({ message: msgDownload });
-    OutputChannel.appendLine(msgDownload);
-    Logger.info(msgDownload);
-    await downloadManager.downloadWithRetries(
-      ESP.URL.IDF_EMBED_GIT.IDF_EMBED_GIT_URL,
-      join(idfToolsDir, "dist"),
-      pkgProgress,
-      cancelToken
-    );
-  }
+  const msgDownload = `Downloading ${idfGitZipPath}...`;
+  progress.report({ message: msgDownload });
+  OutputChannel.appendLine(msgDownload);
+  Logger.info(msgDownload);
+  await downloadManager.downloadWithResume(
+    gitURLToUse,
+    join(idfToolsDir, "dist"),
+    pkgProgress,
+    cancelToken,
+    gitSize
+  );
+
   const doesZipfileExist = await pathExists(idfGitZipPath);
   if (!doesZipfileExist) {
     throw new Error(`${idfGitZipPath} was not downloaded.`);
@@ -113,15 +113,33 @@ export async function installIdfGit(
 export async function installIdfPython(
   idfToolsDir: string,
   idfVersion: string,
+  mirror: ESP.IdfMirror,
   progress?: Progress<{ message: string; increment?: number }>,
   cancelToken?: CancellationToken
 ) {
   const downloadManager = new DownloadManager(idfToolsDir);
   const installManager = new InstallManager(idfToolsDir);
-  const pythonURLToUse =
-    idfVersion >= "5.0"
-      ? ESP.URL.IDF_EMBED_PYTHON.IDF_EMBED_PYTHON_URL
-      : ESP.URL.OLD_IDF_EMBED_PYTHON.IDF_EMBED_PYTHON_URL;
+  let pythonURLToUse: string;
+  let pythonSize: number;
+  if (idfVersion >= "5.0") {
+    pythonURLToUse =
+      mirror === ESP.IdfMirror.Github
+        ? ESP.URL.IDF_EMBED_PYTHON.GITHUB_EMBED_PYTHON_URL
+        : ESP.URL.IDF_EMBED_PYTHON.IDF_EMBED_PYTHON_URL;
+    pythonSize =
+      mirror === ESP.IdfMirror.Github
+        ? ESP.URL.IDF_EMBED_PYTHON.GITHUB_EMBED_PYTHON_SIZE
+        : ESP.URL.IDF_EMBED_PYTHON.IDF_EMBED_PYTHON_SIZE;
+  } else {
+    pythonURLToUse =
+      mirror === ESP.IdfMirror.Github
+        ? ESP.URL.OLD_IDF_EMBED_PYTHON.GITHUB_EMBED_PYTHON_URL
+        : ESP.URL.OLD_IDF_EMBED_PYTHON.IDF_EMBED_PYTHON_URL;
+    pythonSize =
+      mirror === ESP.IdfMirror.Github
+        ? ESP.URL.OLD_IDF_EMBED_PYTHON.GITHUB_EMBED_PYTHON_SIZE
+        : ESP.URL.OLD_IDF_EMBED_PYTHON.IDF_EMBED_PYTHON_SIZE;
+  }
   const idfPyZipPath = join(idfToolsDir, "dist", basename(pythonURLToUse));
   const pkgProgress = new PackageProgress(
     basename(pythonURLToUse),
@@ -153,20 +171,14 @@ export async function installIdfPython(
       return join(idfPyDestPath, "python.exe");
     }
   }
-  const pyZipPathExists = await pathExists(idfPyZipPath);
-  if (pyZipPathExists) {
-    const usingExistingPathMsg = `Using existing ${idfPyZipPath}`;
-    OutputChannel.appendLine(usingExistingPathMsg);
-    Logger.info(usingExistingPathMsg);
-  } else {
-    progress.report({ message: `Downloading ${idfPyZipPath}...` });
-    await downloadManager.downloadWithRetries(
-      pythonURLToUse,
-      join(idfToolsDir, "dist"),
-      pkgProgress,
-      cancelToken
-    );
-  }
+  progress.report({ message: `Downloading ${idfPyZipPath}...` });
+  await downloadManager.downloadWithResume(
+    pythonURLToUse,
+    join(idfToolsDir, "dist"),
+    pkgProgress,
+    cancelToken,
+    pythonSize
+  );
   const doesZipfileExist = await pathExists(idfPyZipPath);
   if (!doesZipfileExist) {
     throw new Error(`${idfPyZipPath} was not downloaded.`);

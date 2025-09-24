@@ -221,7 +221,10 @@ export class IdfToolsManager {
     ) {
       modifiedEnv[pathNameInEnv] = modifiedPath;
     }
-    if (pkg.version_cmd.length === 0 || !pkg.version_cmd[0]) {
+    if (
+      (pkg.version_cmd && pkg.version_cmd.length === 0) ||
+      !pkg.version_cmd[0]
+    ) {
       return "No command version";
     }
     const command = pkg.version_cmd[0];
@@ -241,7 +244,7 @@ export class IdfToolsManager {
       const regexResult = binVersionResponse
         .toString()
         .match(pkg.version_regex);
-      if (regexResult.length > 0) {
+      if (regexResult && regexResult.length > 0) {
         if (pkg.version_regex_replace) {
           let replaceRegexResult = pkg.version_regex_replace;
           for (let i = 0; i < regexResult.length; i++) {

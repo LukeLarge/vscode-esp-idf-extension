@@ -26,10 +26,10 @@ import {
   sendDownloadedZip,
   sendExtractedZip,
 } from "./webviewMsgMethods";
-import { ensureDir, move, pathExists } from "fs-extra";
+import { ensureDir, pathExists } from "fs-extra";
 import { AbstractCloning } from "../common/abstractCloning";
 import { CancellationToken, Disposable, Progress } from "vscode";
-import { delimiter, dirname, join } from "path";
+import { dirname, join } from "path";
 
 export class EspIdfCloning extends AbstractCloning {
   constructor(branchName: string, gitBinPath: string = "git") {
@@ -42,6 +42,8 @@ export class EspIdfCloning extends AbstractCloning {
     );
   }
 }
+
+
 
 export async function downloadInstallIdfVersion(
   idfVersion: IEspIdfLink,
@@ -78,16 +80,17 @@ export async function downloadInstallIdfVersion(
   pkgProgress.Progress = `0.00%`;
 
   if (
-    idfVersion.filename === "master" ||
-    idfVersion.filename.startsWith("release")
+    idfVersion.version === "master" ||
+    idfVersion.version.startsWith("release")
+      || idfVersion.version.endsWith("-dev")
   ) {
-    const downloadByCloneMsg = `Downloading ESP-IDF ${idfVersion.filename} using git clone...\n`;
+    const downloadByCloneMsg = `Downloading ESP-IDF ${idfVersion.version} using git clone...\n`;
     OutputChannel.appendLine(downloadByCloneMsg);
     Logger.info(downloadByCloneMsg);
     if (progress) {
       progress.report({ message: downloadByCloneMsg });
     }
-    const espIdfCloning = new EspIdfCloning(idfVersion.filename, gitPath);
+    const espIdfCloning = new EspIdfCloning(idfVersion.version, gitPath);
     let cancelDisposable: Disposable;
     if (cancelToken) {
       cancelDisposable = cancelToken.onCancellationRequested(() => {
@@ -126,7 +129,7 @@ export async function downloadInstallIdfVersion(
         mirror == ESP.IdfMirror.Espressif ? "Espressif" : "Github"
       } with URL ${urlToUse}`
     );
-    await downloadManager.downloadWithRetries(
+    await downloadManager.downloadWithResume(
       urlToUse,
       destPath,
       pkgProgress,
@@ -148,7 +151,7 @@ export async function downloadInstallIdfVersion(
     const extractedMsg = `Extracted ${downloadedZipPath} in ${destPath}.\n`;
     OutputChannel.appendLine(extractedMsg);
     Logger.info(extractedMsg);
-    await move(extractedDirectory, expectedDirectory);
+    await utils.robustMove(extractedDirectory, expectedDirectory);
     sendExtractedZip(expectedDirectory);
 
     if (gitPath) {

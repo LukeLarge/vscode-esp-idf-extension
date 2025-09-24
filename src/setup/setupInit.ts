@@ -132,7 +132,7 @@ export async function getSetupInitialValues(
   progress.report({ increment: 20, message: "Getting ESP-IDF versions..." });
   const espIdfVersionsList = await getEspIdfVersions(extensionPath);
   progress.report({ increment: 10, message: "Getting ESP-IDF Tags" });
-  const espIdfTagsList = await getEspIdfTags();
+  const espIdfTagsList = await getEspIdfTags("tags");
   progress.report({ increment: 10, message: "Getting Python versions..." });
   const pythonVersions = await getPythonList(extensionPath);
   const idfSetups = await getPreviousIdfSetups(false);
@@ -152,6 +152,7 @@ export async function getSetupInitialValues(
     pythonVersions,
     saveScope,
     workspaceFolder,
+    onReqPkgs: ["esp-clang"],
   } as ISetupInitArgs;
 
   try {
@@ -170,7 +171,6 @@ export async function getSetupInitialValues(
 
       const canAccessCMake = await utils.isBinInPath(
         "cmake",
-        extensionPath,
         process.env
       );
 
@@ -182,7 +182,6 @@ export async function getSetupInitialValues(
 
       const canAccessNinja = await utils.isBinInPath(
         "ninja",
-        extensionPath,
         process.env
       );
 
@@ -245,7 +244,6 @@ export async function isCurrentInstallValid(workspaceFolder: Uri) {
   if (process.platform !== "win32") {
     const canAccessCMake = await utils.isBinInPath(
       "cmake",
-      containerPath,
       process.env
     );
     if (!canAccessCMake) {
@@ -253,7 +251,6 @@ export async function isCurrentInstallValid(workspaceFolder: Uri) {
     }
     const canAccessNinja = await utils.isBinInPath(
       "ninja",
-      containerPath,
       process.env
     );
     if (!canAccessNinja) {

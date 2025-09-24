@@ -108,6 +108,8 @@ ESP-IDF 相关设置
       - 启用 ``idf.usbSerialPortFilters`` 列表以过滤串口设备列表
     * - **idf.usbSerialPortFilters**
       - 用于过滤已知乐鑫设备的 USB productID 和 vendorID 列表
+    * - **idf.serialPortDetectionTimeout**
+      - 使用 esptool.py 检测串口时的超时时间（秒）（默认值：60）
     * - **openocd.jtag.command.force_unix_path_separator**
       - 强制在 Windows 操作系统中使用 ``/`` 作为路径分隔符，而不是 ``\\``
     * - **idf.svdFilePath**
@@ -124,6 +126,7 @@ ESP-IDF 相关设置
 5. **idf.openOcdDebugLevel** 是 OpenOCD 服务器输出的日志级别，范围为 0 到 4。
 6. **idf.openOcdLaunchArgs** 是用于配置 OpenOCD 启动的参数字符串数组。生成的 OpenOCD 启动命令格式如下：``openocd -d${idf.openOcdDebugLevel} -f ${idf.openOcdConfigs} ${idf.openOcdLaunchArgs}``。
 7. **idf.jtagFlashCommandExtraArgs** 用于OpenCD JTAG闪存任务。请查看 `上传待调试的应用程序 <https://docs.espressif.com/projects/esp-idf/zh_CN/latest/esp32/api-guides/jtag-debugging/index.html#jtag-upload-app-debug>`.
+8. **idf.serialPortDetectionTimeout** 是用于 **ESP-IDF：选择端口** 命令的超时值（秒），当使用 esptool.py 自动检测串口时使用。此设置允许用户配置扩展在扫描可用串口上的兼容设备时应等待多长时间。
 
 .. note::
 
@@ -155,6 +158,28 @@ ESP-IDF 相关设置
       - 深色主题下 gcov 代码覆盖率报告中未覆盖行的背景颜色
 
 
+PyTest 相关设置
+---------------
+
+以下设置用于配置 PyTest 单元测试。
+
+.. list-table::
+    :widths: 25 75
+    :header-rows: 1
+
+    * - 设置 ID
+      - 描述
+    * - **idf.unitTestFilePattern**
+      - 用于发现单元测试文件的 glob 模式（默认值：``**/test/test_*.c``）
+    * - **idf.pyTestEmbeddedServices**
+      - pytest 执行的内嵌服务列表（默认值：``["esp", "idf"]``）
+
+扩展将按照以下方式使用上述设置：
+
+1. **idf.unitTestFilePattern** 用于扩展在项目中发现单元测试文件。默认模式 :code:`**/test/test_*.c` 会在任何 "test" 目录中查找以 "test" 开头的 C 文件。
+2. **idf.pyTestEmbeddedServices** 指定运行 pytest 命令时使用的内嵌服务。这些服务会作为 :code:`--embedded-services` 参数传递给 pytest 命令。
+
+
 扩展行为设置
 ------------
 
@@ -184,8 +209,8 @@ ESP-IDF 相关设置
       - 启用 Kconfig 文件的样式验证
     * - **idf.telemetry**
       - 启用遥测
-    * - **idf.deleteComponentsOnFullClean**
-      - 在执行 **Full Clean Project** 命令时删除 ``managed_components`` （该选项默认禁用）
+    * - **idf.extraCleanPaths**
+      - 在执行 **完全清理项目** 命令时删除额外的路径（该选项默认值为 `[]`）。例如，可以设置为 ``["managed_components", "dependencies.lock"]``，以从当前工作区文件夹中删除 managed_components 目录和 dependencies.lock 文件。
     * - **idf.monitorNoReset**
       - 启用 IDF 监视器的不重置标志（该选项默认禁用）
     * - **idf.monitorEnableTimestamps**

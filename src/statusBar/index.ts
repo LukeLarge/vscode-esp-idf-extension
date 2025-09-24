@@ -25,6 +25,8 @@ import {
   UIKind,
   Uri,
   window,
+  l10n,
+  ThemeIcon,
 } from "vscode";
 import { getCurrentIdfSetup } from "../versionSwitcher";
 import { readParameter } from "../idfConfiguration";
@@ -127,12 +129,13 @@ export async function createCmdsStatusBarItems(workspaceFolder: Uri) {
     }
   }
 
-   // Only create the project configuration status bar item if the configuration file exists
-   if (projectConfExists) {
+  // Only create the project configuration status bar item if the configuration file exists
+  if (projectConfExists) {
     if (!projectConf) {
       // No configuration selected but file exists with configurations
       let statusBarItemName = "No Configuration Selected";
-      let statusBarItemTooltip = "No project configuration selected. Click to select one";
+      let statusBarItemTooltip =
+        "No project configuration selected. Click to select one";
       statusBarItems["projectConf"] = createStatusBarItem(
         `$(${
           commandDictionary[CommandKeys.SelectProjectConfiguration].iconId
@@ -234,6 +237,14 @@ export async function createCmdsStatusBarItems(workspaceFolder: Uri) {
     89,
     commandDictionary[CommandKeys.CustomTask].checkboxState
   );
+  statusBarItems["hints"] = createStatusBarItem(
+    l10n.t("💡 New ESP-IDF Hints!"),
+    l10n.t("ESP-IDF: Hints available. Click to view."),
+    "espIdf.errorHints.focus",
+    1000,
+    TreeItemCheckboxState.Unchecked
+  );
+  statusBarItems["hints"].hide();
   return statusBarItems;
 }
 
@@ -246,6 +257,7 @@ export function createStatusBarItem(
 ) {
   const alignment: StatusBarAlignment = StatusBarAlignment.Left;
   const statusBarItem = window.createStatusBarItem(cmd, alignment, priority);
+  statusBarItem.name = tooltip;
   statusBarItem.text = icon;
   statusBarItem.tooltip = tooltip;
   statusBarItem.command = cmd;
@@ -253,4 +265,35 @@ export function createStatusBarItem(
     statusBarItem.show();
   }
   return statusBarItem;
+}
+
+/**
+ * Show the hints status bar item with an alert icon if hints are available
+ * @param {boolean} hasHints - Whether hints are available
+ */
+export function updateHintsStatusBarItem(hasHints: boolean) {
+  if (!statusBarItems["hints"]) return;
+  if (hasHints) {
+    statusBarItems["hints"].text = l10n.t("💡 New ESP-IDF Hints!");
+    statusBarItems["hints"].tooltip = l10n.t(
+      "ESP-IDF: Hints available. Click to view."
+    );
+    statusBarItems["hints"].backgroundColor = new ThemeIcon(
+      "statusBarItem.warningBackground"
+    );
+    statusBarItems["hints"].show();
+  } else {
+    statusBarItems["hints"].hide();
+    statusBarItems["hints"].color = undefined;
+  }
+}
+
+/**
+ * Dispose the hints status bar item
+ */
+export function disposeHintsStatusBarItem() {
+  if (statusBarItems["hints"]) {
+    statusBarItems["hints"].dispose();
+    statusBarItems["hints"] = undefined;
+  }
 }

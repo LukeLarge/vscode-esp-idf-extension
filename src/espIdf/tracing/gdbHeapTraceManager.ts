@@ -62,18 +62,6 @@ export class GdbHeapTraceManager {
           /\\/g,
           "/"
         )}/htrace_${new Date().getTime()}.svdat`;
-        await this.createGdbinitFile(fileName, workspace.fsPath);
-        const modifiedEnv = await appendIdfAndToolsToPath(workspace);
-        const idfTarget = modifiedEnv.IDF_TARGET || "esp32";
-        const gdbTool = getToolchainToolName(idfTarget, "gdb");
-        const isGdbToolInPath = await isBinInPath(
-          gdbTool,
-          workspace.fsPath,
-          modifiedEnv
-        );
-        if (!isGdbToolInPath) {
-          throw new Error(`${gdbTool} is not available in PATH.`);
-        }
         const buildDirPath = readParameter(
           "idf.buildPath",
           workspace
@@ -81,6 +69,17 @@ export class GdbHeapTraceManager {
         const buildExists = await pathExists(buildDirPath);
         if (!buildExists) {
           throw new Error(`${buildDirPath} doesn't exist. Build first.`);
+        }
+        await this.createGdbinitFile(fileName, buildDirPath);
+        const modifiedEnv = await appendIdfAndToolsToPath(workspace);
+        const idfTarget = modifiedEnv.IDF_TARGET || "esp32";
+        const gdbTool = getToolchainToolName(idfTarget, "gdb");
+        const isGdbToolInPath = await isBinInPath(
+          gdbTool,
+          modifiedEnv
+        );
+        if (!isGdbToolInPath) {
+          throw new Error(`${gdbTool} is not available in PATH.`);
         }
         const projectName = await getProjectName(buildDirPath);
         const elfFilePath = join(buildDirPath, `${projectName}.elf`);
@@ -133,8 +132,12 @@ export class GdbHeapTraceManager {
   public async stop() {
     try {
       if (this.childProcess) {
-        this.childProcess.stdin.end();
-        this.childProcess.kill("SIGKILL");
+        this.childProcess.stdin.write("quit\n");
+        // Give GDB some time to process the quit command
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        if (!this.childProcess.killed) {
+          this.childProcess.kill("SIGKILL");
+        }
         this.childProcess = null;
       }
       this.archiveDataProvider.populateArchiveTree();
@@ -142,7 +145,7 @@ export class GdbHeapTraceManager {
     } catch (error) {
       const msg = error.message
         ? error.message
-        : "Error stoping GDB Heap Tracing";
+        : "Error stopping GDB Heap Tracing";
       Logger.errorNotify(msg, error, "GdbHeapTraceManager stop");
     }
   }
@@ -171,9 +174,9 @@ export class GdbHeapTraceManager {
     traceFilePath: string,
     workspaceFolder: string
   ) {
-    let content = `set pagination off\ntarget remote :3333\n\nmon reset halt\nflushregs\n\n`;
-    content += `tb heap_trace_start\ncommands\nmon esp sysview start ${traceFilePath}\n`;
-    content += `c\nend\n\ntb heap_trace_stop\ncommands\nmon esp sysview stop\nend\n\nc`;
+    let content = `set pagination off\nset confirm off\ntarget remote :3333\n\nmon reset halt\nflushregs\n\n`;
+    content += `tb heap_trace_start\ncommands\nmon esp sysview_mcore start ${traceFilePath}\n`;
+    content += `c\nend\n\ntb heap_trace_stop\ncommands\nmon esp sysview_mcore stop\nend\n\nc`;
     const filePath = join(workspaceFolder, this.gdbinitFileName);
     await writeFile(filePath, content);
   }

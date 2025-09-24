@@ -90,6 +90,12 @@ export namespace ESP {
     export const DB_VERSION_KEY = "esp.extension.version";
   }
 
+  export namespace PreReleaseNotification {
+    export const SHOWN_KEY = "espIdf.prerelease.notification.shown";
+    // Specific notification campaigns - add new ones for future campaigns
+    export const EIM_SETUP_CAMPAIGN = "eim-setup-2025";
+  }
+
   export namespace URL {
     export const IDF_GITHUB_ASSETS = "https://dl.espressif.com/github_assets";
     export const IDF_VERSIONS =
@@ -97,14 +103,26 @@ export namespace ESP {
     export namespace IDF_EMBED_GIT {
       export const VERSION = "2.39.2";
       export const IDF_EMBED_GIT_URL = `https://dl.espressif.com/dl/idf-git/idf-git-${VERSION}-win64.zip`;
+      export const GITHUB_EMBED_GIT_URL = `https://github.com/git-for-windows/git/releases/download/v${VERSION}.windows.1/MinGit-${VERSION}-64-bit.zip`;
+      // File sizes in bytes
+      export const IDF_EMBED_GIT_SIZE = 29211171; // ~27.8 MB
+      export const GITHUB_EMBED_GIT_SIZE = 29211171; // ~27.8 MB (from GitHub Releases API)
     }
     export namespace OLD_IDF_EMBED_PYTHON {
       export const VERSION = "3.8.7";
       export const IDF_EMBED_PYTHON_URL = `https://dl.espressif.com/dl/idf-python/idf-python-${VERSION}-embed-win64.zip`;
+      export const GITHUB_EMBED_PYTHON_URL = `https://github.com/espressif/idf-python/releases/download/v${VERSION}/idf-python-${VERSION}-embed-win64.zip`;
+      // File sizes in bytes
+      export const IDF_EMBED_PYTHON_SIZE = 20086226; // ~19.1 MB
+      export const GITHUB_EMBED_PYTHON_SIZE = 21471135; // ~20.5 MB (from GitHub Releases API)
     }
     export namespace IDF_EMBED_PYTHON {
       export const VERSION = "3.11.2";
       export const IDF_EMBED_PYTHON_URL = `https://dl.espressif.com/dl/idf-python/idf-python-${VERSION}-embed-win64.zip`;
+      export const GITHUB_EMBED_PYTHON_URL = `https://github.com/espressif/idf-python/releases/download/v${VERSION}/idf-python-${VERSION}-embed-win64.zip`;
+      // File sizes in bytes
+      export const IDF_EMBED_PYTHON_SIZE = 14106455; // ~13.4 MB
+      export const GITHUB_EMBED_PYTHON_SIZE = 14106455; // ~13.4 MB (from GitHub Releases API)
     }
     export const GithubRepository =
       "https://github.com/espressif/vscode-esp-idf-extension";

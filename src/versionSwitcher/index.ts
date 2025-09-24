@@ -44,7 +44,15 @@ export async function selectIdfSetup(
     );
     existingIdfSetups = [...existingIdfSetups, ...systemIdfSetups];
   }
-  const idfSetups = [...globalStateSetups, ...existingIdfSetups];
+  const currentIdfSetup = await getCurrentIdfSetup(workspaceFolder);
+  let idfSetups = [...globalStateSetups, ...existingIdfSetups, currentIdfSetup];
+  idfSetups = idfSetups.filter(
+    (setup, index, self) =>
+      index ===
+      self.findIndex(
+        (s) => s.idfPath === setup.idfPath && s.toolsPath === setup.toolsPath
+      )
+  );
   if (idfSetups.length === 0) {
     await window.showInformationMessage("No ESP-IDF Setups found");
     return;

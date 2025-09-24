@@ -61,10 +61,13 @@ export class OpenOCDManager extends EventEmitter {
 
   public async version(): Promise<string> {
     const modifiedEnv = await appendIdfAndToolsToPath(this.workspace);
-    if (!isBinInPath("openocd", this.workspace.fsPath, modifiedEnv)) {
+    const openOcdPath = await isBinInPath("openocd", modifiedEnv, [
+      "openocd-esp32",
+    ]);
+    if (!openOcdPath) {
       return "";
     }
-    const resp = await sspawn("openocd", ["--version"], {
+    const resp = await sspawn(openOcdPath, ["--version"], {
       cwd: this.workspace.fsPath,
       env: modifiedEnv,
     });
@@ -157,7 +160,10 @@ export class OpenOCDManager extends EventEmitter {
       return;
     }
     const modifiedEnv = await appendIdfAndToolsToPath(this.workspace);
-    if (!isBinInPath("openocd", this.workspace.fsPath, modifiedEnv)) {
+    const openOcdPath = await isBinInPath("openocd", modifiedEnv, [
+      "openocd-esp32",
+    ]);
+    if (!openOcdPath) {
       throw new Error(
         "Invalid OpenOCD bin path or access is denied for the user"
       );
@@ -168,49 +174,47 @@ export class OpenOCDManager extends EventEmitter {
       );
     }
 
-    const openOcdConfigFilesList = idfConf.readParameter(
-      "idf.openOcdConfigs",
-      this.workspace
-    ) as string[];
-
-    if (
-      typeof openOcdConfigFilesList === "undefined" ||
-      openOcdConfigFilesList.length < 1
-    ) {
-      throw new Error(
-        "Invalid OpenOCD Config files. Check idf.openOcdConfigs configuration value."
-      );
-    }
-
     const openOcdArgs: string[] = [];
-    const openOcdDebugLevel = idfConf.readParameter(
-      "idf.openOcdDebugLevel",
-      this.workspace
-    ) as string;
-    openOcdArgs.push(`-d${openOcdDebugLevel}`);
-
-    const addLaunchArgs = idfConf.readParameter(
+    const openOcdLaunchArgs = idfConf.readParameter(
       "idf.openOcdLaunchArgs",
       this.workspace
     ) as string[];
 
-    if (addLaunchArgs && addLaunchArgs.length) {
-      addLaunchArgs.forEach((arg) => {
-        openOcdArgs.push(arg);
+    if (openOcdLaunchArgs && openOcdLaunchArgs.length > 0) {
+      openOcdArgs.push(...openOcdLaunchArgs);
+    } else {
+      const openOcdConfigFilesList = idfConf.readParameter(
+        "idf.openOcdConfigs",
+        this.workspace
+      ) as string[];
+
+      if (
+        typeof openOcdConfigFilesList === "undefined" ||
+        openOcdConfigFilesList.length < 1
+      ) {
+        throw new Error(
+          "Invalid OpenOCD Config files. Check idf.openOcdConfigs configuration value."
+        );
+      }
+
+      const openOcdDebugLevel = idfConf.readParameter(
+        "idf.openOcdDebugLevel",
+        this.workspace
+      ) as string;
+      openOcdArgs.push(`-d${openOcdDebugLevel}`);
+
+      openOcdConfigFilesList.forEach((configFile) => {
+        const isFileAlreadyInArgs = openOcdArgs.some((arg) =>
+          arg.includes(configFile)
+        );
+        if (!isFileAlreadyInArgs) {
+          openOcdArgs.push("-f");
+          openOcdArgs.push(configFile);
+        }
       });
     }
 
-    openOcdConfigFilesList.forEach((configFile) => {
-      const isFileAlreadyInArgs = openOcdArgs.some((arg) =>
-        arg.includes(configFile)
-      );
-      if (!isFileAlreadyInArgs) {
-        openOcdArgs.push("-f");
-        openOcdArgs.push(configFile);
-      }
-    });
-
-    this.server = spawn("openocd", openOcdArgs, {
+    this.server = spawn(openOcdPath, openOcdArgs, {
       cwd: this.workspace.fsPath,
       env: modifiedEnv,
     });
@@ -265,7 +269,7 @@ export class OpenOCDManager extends EventEmitter {
       }
       this.stop();
     });
-    this.updateStatusText("❇️ ESP-IDF: OpenOCD Server (Running)");
+    this.updateStatusText("❇️ OpenOCD Server (Running)");
     OutputChannel.show();
   }
 
@@ -273,7 +277,7 @@ export class OpenOCDManager extends EventEmitter {
     if (this.server && !this.server.killed) {
       this.server.kill("SIGKILL");
       this.server = undefined;
-      this.updateStatusText("❌ ESP-IDF: OpenOCD Server (Stopped)");
+      this.updateStatusText("❌ OpenOCD Server (Stopped)");
       const endMsg = "[Stopped] : OpenOCD Server";
       OutputChannel.appendLine(endMsg, "OpenOCD");
       Logger.info(endMsg);
@@ -287,10 +291,10 @@ export class OpenOCDManager extends EventEmitter {
   private registerOpenOCDStatusBarItem() {
     this.statusBar = vscode.window.createStatusBarItem(
       CommandKeys.OpenOCD,
-      vscode.StatusBarAlignment.Right,
-      1000
+      vscode.StatusBarAlignment.Left,
+      1
     );
-    this.statusBar.text = "[ESP-IDF: OpenOCD Server]";
+    this.statusBar.name = this.statusBar.text = "OpenOCD Server";
     const commandDictionary = createCommandDictionary();
     this.statusBar.tooltip = commandDictionary[CommandKeys.OpenOCD].tooltip;
     this.statusBar.command = CommandKeys.OpenOCD;

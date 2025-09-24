@@ -48,7 +48,9 @@ export class Configuration {
   pythonPackages: pyPkgVersion[];
   serialPort: string;
   sysPythonBinPath: string;
+  openOcdLaunchArgs: string[];
   openOcdConfigs: string[];
+  openOCDDebugLevel: string;
   toolsPath: string;
   gitPath: string;
   customTerminalExecutable: string;
@@ -81,6 +83,7 @@ export class SystemInfo {
   systemName: string;
   vscodeVersion: string;
   remoteName: string;
+  appName: string;
 }
 
 export class pyPkgVersion {

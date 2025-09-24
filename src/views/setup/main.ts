@@ -122,7 +122,6 @@ window.addEventListener("message", (event) => {
       }
       break;
     case "setIsInstalled":
-      console.log(msg.isInstalled);
       if (typeof msg.isInstalled !== "undefined") {
         store.isIdfInstalled = msg.isInstalled;
         if (msg.installed) {
@@ -277,7 +276,7 @@ window.addEventListener("message", (event) => {
     case "canAccessFileResponse":
       if (!msg.exists) {
         store.setIdfPathError(
-          "The path for ESP-IDF is not valid: /tools/idf.py not found."
+          `The path for ESP-IDF is not valid: ${msg.path} not found.`
         );
       } else if (msg.noWhiteSpaceSupport && msg.hasWhitespace) {
         store.setIdfPathError(

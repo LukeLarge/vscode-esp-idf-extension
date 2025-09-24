@@ -19,7 +19,6 @@ import { pathExists, readFile, writeFile, writeJson } from "fs-extra";
 import { EOL } from "os";
 import { join } from "path";
 import * as vscode from "vscode";
-import { Logger } from "../logger/logger";
 import { reportObj } from "./types";
 
 export async function writeTextReport(
@@ -38,6 +37,7 @@ export async function writeTextReport(
   output += `Visual Studio Code version ${reportedResult.systemInfo.vscodeVersion} ${EOL}`;
   output += `Visual Studio Code language ${reportedResult.systemInfo.language} ${EOL}`;
   output += `Visual Studio Code shell ${reportedResult.systemInfo.shell} ${EOL}`;
+  output += `Visual Studio Code app name ${reportedResult.systemInfo.appName} ${EOL}`;
   output += `ESP-IDF Extension version ${reportedResult.systemInfo.extensionVersion} ${EOL}`;
   output += `Workspace folder ${reportedResult.workspaceFolder} ${EOL}`;
   output += `---------------------------------------------------- Extension configuration settings ------------------------------------------------------${EOL}`;
@@ -69,6 +69,8 @@ export async function writeTextReport(
   output += `Virtual environment Python path (computed) ${reportedResult.configurationSettings.pythonBinPath}${EOL}`;
   output += `Serial port (idf.port) ${reportedResult.configurationSettings.serialPort}${EOL}`;
   output += `OpenOCD Configs (idf.openOcdConfigs) ${reportedResult.configurationSettings.openOcdConfigs}${EOL}`;
+  output += `OpenOCD log level (idf.openOcdDebugLevel) ${reportedResult.configurationSettings.openOCDDebugLevel}${EOL}`;
+  output += `OpenOCD launch arguments (idf.openOcdLaunchArgs) ${reportedResult.configurationSettings.openOcdLaunchArgs}${EOL}`;
   output += `ESP-IDF Tools Path (idf.toolsPath) ${reportedResult.configurationSettings.toolsPath}${EOL}`;
   output += `Git Path (idf.gitPath) ${reportedResult.configurationSettings.gitPath}${EOL}`;
   output += `Notification Mode (idf.notificationMode) ${reportedResult.configurationSettings.notificationMode}${EOL}`;
@@ -217,7 +219,7 @@ export async function writeTextReport(
   if (logFileExists) {
     const logFileContent = await readFile(logFile, "utf8");
     output += `----------------------------------------------------------- Logfile -----------------------------------------------------------------${EOL}`;
-    output += logFileContent + EOL + lineBreak;
+    output += replaceUserPathInStr(logFileContent) + EOL + lineBreak;
   }
   const resultFile = join(context.extensionPath, "report.txt");
   await writeFile(resultFile, output);
@@ -232,13 +234,31 @@ export function replaceUserPath(report: reportObj): reportObj {
   const strReport = JSON.stringify(report);
 
   // Replacing all home paths (based on OS) with '...' using es6 syntax. Can be replaced with one line using .replaceAll() when we will update the version of ECMAScript to 2021 or higher
-  let re = new RegExp(process.env.HOME, "g");
-  if (process.env.windir) {
-    const reWin = new RegExp("\\\\", "g");
-    const result = process.env.HOMEPATH.replace(reWin, "\\\\\\\\");
-    re = new RegExp(result, "g");
-  }
-  const parsedReport = strReport.replace(re, "<HOMEPATH>");
+  const parsedReport = replaceUserPathInStr(strReport);
 
   return JSON.parse(parsedReport);
+}
+
+function replaceUserPathInStr(strReport: string) {
+  if (process.env.windir) {
+    const homePath = process.env.HOMEPATH;
+    // Escape the path for regex, but keep backslashes as is
+    const escapedPath = homePath.replace(/[.*+?^${}()|[\]\\]/g, (match) => {
+      return match === "\\" ? "\\\\\\\\" : "\\" + match;
+    });
+    // Create pattern that matches both Windows and Posix style
+    const posixPath = homePath
+      .replace(/\\/g, "/")
+      .replace(/[.*+?^${}()|[\]\\]/g, (match) => {
+        return match === "/" ? "/" : "\\" + match;
+      });
+    const pattern = `(${escapedPath}|${posixPath})`;
+    const re = new RegExp(pattern, "g");
+    return strReport.replace(re, "<HOMEPATH>");
+  } else {
+    // For non-Windows systems, escape HOME path for regex
+    const escapedHome = process.env.HOME.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(escapedHome, "g");
+    return strReport.replace(re, "<HOMEPATH>");
+  }
 }

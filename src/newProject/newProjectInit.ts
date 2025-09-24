@@ -28,7 +28,12 @@ import {
   loadIdfSetupsFromEspIdfJson,
 } from "../setup/existingIdfSetups";
 import { IdfSetup } from "../views/setup/types";
-import { getTargetsFromEspIdf, IdfTarget } from "../espIdf/setTarget/getTargets";
+import {
+  getTargetsFromEspIdf,
+  IdfTarget,
+} from "../espIdf/setTarget/getTargets";
+import { getCurrentIdfSetup } from "../versionSwitcher";
+import { join } from "path";
 
 export interface INewProjectArgs {
   espIdfSetup: IdfSetup;
@@ -53,12 +58,12 @@ export async function getNewProjectArgs(
   progress.report({ increment: 10, message: "Loading ESP-IDF components..." });
   const components = [];
   progress.report({ increment: 10, message: "Loading serial ports..." });
-  let serialPortList: Array<string>;
+  let serialPortList: Array<string> = ["detect"];
   try {
     const serialPortListDetails = await SerialPort.shared().getListArray(
       workspace
     );
-    serialPortList = serialPortListDetails.map((p) => p.comName);
+    serialPortList.push(...serialPortListDetails.map((p) => p.comName));
   } catch (error) {
     const msg = error.message
       ? error.message
@@ -80,7 +85,15 @@ export async function getNewProjectArgs(
     );
     existingIdfSetups = [...existingIdfSetups, ...systemIdfSetups];
   }
-  const setupsToUse = [...idfSetups, ...existingIdfSetups];
+  const currentIdfSetup = await getCurrentIdfSetup(workspace);
+  let setupsToUse = [...idfSetups, ...existingIdfSetups, currentIdfSetup];
+  setupsToUse = setupsToUse.filter(
+    (setup, index, self) =>
+      index ===
+      self.findIndex(
+        (s) => s.idfPath === setup.idfPath && s.toolsPath === setup.toolsPath
+      )
+  );
   if (setupsToUse.length === 0) {
     await window.showInformationMessage("No ESP-IDF Setups found");
     return;
@@ -134,11 +147,22 @@ export async function getNewProjectArgs(
     workspace
   ) as string;
   let templates: { [key: string]: IExampleCategory } = {};
-  templates["Extension"] = getExamplesList(extensionPath, "templates");
   const idfExists = await dirExistPromise(idfSetup.idfPath);
   if (idfExists) {
     const idfTemplates = getExamplesList(idfSetup.idfPath);
     templates["ESP-IDF"] = idfTemplates;
+    const idfToolsTemplateExists = await dirExistPromise(
+      join(idfSetup.idfPath, "tools", "templates")
+    );
+    if (idfToolsTemplateExists) {
+      const idfToolsTemplates = getExamplesList(idfSetup.idfPath, [
+        "tools",
+        "templates",
+      ], "ESP-IDF Templates");
+      if (idfToolsTemplates.examples.length > 0) {
+        templates["ESP-IDF Templates"] = idfToolsTemplates;
+      }
+    }
   }
   const adfExists = await dirExistPromise(espAdfPath);
   if (adfExists) {
@@ -166,8 +190,11 @@ export async function getNewProjectArgs(
     templates["ESP-HOMEKIT-SDK"] = homeKitSdkTemplates;
   }
 
-  const targetsFromIdf = await getTargetsFromEspIdf(workspace, idfSetup.idfPath);
-  
+  const targetsFromIdf = await getTargetsFromEspIdf(
+    workspace,
+    idfSetup.idfPath
+  );
+
   progress.report({ increment: 50, message: "Initializing wizard..." });
   return {
     boards: espBoards,
@@ -181,5 +208,6 @@ export async function getNewProjectArgs(
     espRainmakerPath: rainmakerExists ? espRainmakerPath : undefined,
     serialPortList,
     templates,
+    workspaceFolder: workspace,
   } as INewProjectArgs;
 }

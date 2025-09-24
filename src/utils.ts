@@ -24,14 +24,14 @@ import {
   readdir,
   readFile,
   readJSON,
+  remove,
+  stat,
   writeFile,
   writeJSON,
 } from "fs-extra";
-import * as HttpsProxyAgent from "https-proxy-agent";
 import { marked } from "marked";
 import { EOL, platform } from "os";
 import * as path from "path";
-import * as url from "url";
 import * as vscode from "vscode";
 import { IdfComponent } from "./idfComponent";
 import * as idfConf from "./idfConfiguration";
@@ -89,12 +89,29 @@ export class PreCheck {
       vscode.workspace.workspaceFolders.length > 0
     );
   }
+  public static isNotDockerContainer(): boolean {
+    return vscode.env.remoteName !== "dev-container";
+  }
   public static notUsingWebIde(): boolean {
     if (vscode.env.remoteName === "codespaces") {
       return false;
     }
     return process.env.WEB_IDE ? false : true;
   }
+
+  /**
+   * Checks if the extension is running in a VS Code fork (not the original Visual Studio Code)
+   * @returns true if running in a fork like Cursor, VSCodium, etc., false if running in original VS Code
+   * @example
+   * if (PreCheck.isRunningInVSCodeFork()) {
+   *   // Fork-specific behavior
+   *   Logger.info("Running in VS Code fork");
+   * }
+   */
+  public static isRunningInVSCodeFork(): boolean {
+    return vscode.env.appName !== "Visual Studio Code";
+  }
+
   public static openOCDVersionValidator(
     minVersion: string,
     currentVersion: string
@@ -140,33 +157,52 @@ export class PreCheck {
   }
 }
 
+export interface ISpawnOptions extends childProcess.SpawnOptions {
+  /** Cancellation token to cancel the spawn */
+  cancelToken?: vscode.CancellationToken;
+  /** The maximum time in milliseconds to wait for the command to complete */
+  timeout?: number;
+  /** Whether to suppress output to the console */
+  silent?: boolean;
+  /** A string to return the output of the command */
+  outputString?: string;
+  /** Output append mode: 'appendLine', 'append', or undefined */
+  appendMode?: "appendLine" | "append";
+}
+
 export function spawn(
   command: string,
   args: string[] = [],
-  options: any = {},
-  timeout: number = 0,
-  silent: boolean = false, // this switches the output to console off the output is only returned, not printed,
-  cancelToken?: vscode.CancellationToken,
-  outputString?: string
+  options: ISpawnOptions = {
+    outputString: "",
+    silent: false,
+    appendMode: "appendLine",
+  }
 ): Promise<Buffer> {
   let buff = Buffer.alloc(0);
   const sendToOutputChannel = (data: Buffer) => {
     buff = Buffer.concat([buff, data]);
-    outputString += buff.toString();
-    !silent && OutputChannel.appendLine(data.toString());
+    options.outputString += buff.toString();
+    if (!options.silent) {
+      if (options.appendMode === "append") {
+        OutputChannel.append(data.toString());
+      } else {
+        OutputChannel.appendLine(data.toString());
+      }
+    }
   };
   return new Promise((resolve, reject) => {
     options.cwd = options.cwd || path.resolve(path.join(__dirname, ".."));
     const child = childProcess.spawn(command, args, options);
     let timeoutHandler = undefined;
-    if (timeout > 0) {
+    if (options.timeout > 0) {
       timeoutHandler = setTimeout(() => {
         child.kill();
-      }, timeout);
+      }, options.timeout);
     }
 
-    if (cancelToken) {
-      cancelToken.onCancellationRequested((e) => {
+    if (options.cancelToken) {
+      options.cancelToken.onCancellationRequested((e) => {
         child.kill();
       });
     }
@@ -257,17 +293,22 @@ export async function createVscodeFolder(curWorkspaceFsPath: vscode.Uri) {
   await setCCppPropertiesJsonCompilerPath(curWorkspaceFsPath);
 }
 
+export async function createGitignoreFile(destinationDir: vscode.Uri) {
+  const gitignoreSrcPath = path.join(templateDir, ".gitignore");
+  const gitignoreDestPath = path.join(destinationDir.fsPath, ".gitignore");
+  const gitignoreExists = await pathExists(gitignoreSrcPath);
+  if (gitignoreExists) {
+    await copy(gitignoreSrcPath, gitignoreDestPath);
+  }
+}
+
 export async function setCCppPropertiesJsonCompilerPath(
   curWorkspaceFsPath: vscode.Uri
 ) {
   const modifiedEnv = await appendIdfAndToolsToPath(curWorkspaceFsPath);
   const idfTarget = modifiedEnv.IDF_TARGET || "esp32";
   const gccTool = getToolchainToolName(idfTarget, "gcc");
-  const compilerAbsolutePath = await isBinInPath(
-    gccTool,
-    curWorkspaceFsPath.fsPath,
-    modifiedEnv
-  );
+  const compilerAbsolutePath = await isBinInPath(gccTool, modifiedEnv);
   if (!compilerAbsolutePath) {
     return;
   }
@@ -336,7 +377,7 @@ export async function getToolchainPath(
   const idfTarget = modifiedEnv.IDF_TARGET || "esp32";
   const gccTool = getToolchainToolName(idfTarget, tool);
   try {
-    return await isBinInPath(gccTool, workspaceUri.fsPath, modifiedEnv);
+    return await isBinInPath(gccTool, modifiedEnv);
   } catch (error) {
     Logger.errorNotify(
       `${tool} is not found in idf.toolsPath`,
@@ -405,6 +446,7 @@ export async function copyFromSrcProject(
   await copy(srcDirPath, destinationDir.fsPath);
   await createVscodeFolder(destinationDir);
   await createDevContainer(destinationDir.fsPath);
+  await createGitignoreFile(destinationDir);
 }
 
 export function getVariableFromCMakeLists(workspacePath: string, key: string) {
@@ -466,7 +508,10 @@ export async function getConfigValueFromSDKConfig(
   workspacePath: vscode.Uri
 ): Promise<string> {
   const sdkconfigFilePath = await getSDKConfigFilePath(workspacePath);
-  if (!canAccessFile(sdkconfigFilePath, fs.constants.R_OK)) {
+  if (
+    !sdkconfigFilePath ||
+    !canAccessFile(sdkconfigFilePath, fs.constants.R_OK)
+  ) {
     throw new Error("sdkconfig file doesn't exists or can't be read");
   }
   const configs = readFileSync(sdkconfigFilePath);
@@ -656,36 +701,6 @@ export async function getToolsJsonPath(newIdfPath: string) {
   return jsonToUse;
 }
 
-export function getHttpsProxyAgent(): HttpsProxyAgent {
-  let proxy: string = vscode.workspace.getConfiguration().get("http.proxy");
-  if (!proxy) {
-    proxy =
-      process.env.HTTPS_PROXY ||
-      process.env.https_proxy ||
-      process.env.HTTP_PROXY ||
-      process.env.http_proxy;
-    if (!proxy) {
-      return null;
-    }
-  }
-
-  const proxyUrl: any = url.parse(proxy);
-  if (proxyUrl.protocol !== "https:" && proxyUrl.protocol !== "http:") {
-    return null;
-  }
-
-  const strictProxy: any = vscode.workspace
-    .getConfiguration()
-    .get("http.proxyStrictSSL", true);
-  const proxyOptions: any = {
-    auth: proxyUrl.auth,
-    host: proxyUrl.hostname,
-    port: parseInt(proxyUrl.port, 10),
-    rejectUnauthorized: strictProxy,
-  };
-  return new HttpsProxyAgent(proxyOptions);
-}
-
 export function readDirPromise(dirPath) {
   return new Promise<string[]>((resolve, reject) => {
     fs.readdir(dirPath, (err, files) => {
@@ -846,7 +861,7 @@ export async function checkGitExists(workingDir: string, gitPath: string) {
   try {
     const gitBinariesExists = await pathExists(gitPath);
     if (!gitBinariesExists) {
-      const gitInPath = await isBinInPath("git", workingDir, process.env);
+      const gitInPath = await isBinInPath("git", process.env);
       if (!gitInPath) {
         return "Not found";
       }
@@ -1186,13 +1201,43 @@ export async function appendIdfAndToolsToPath(curWorkspace: vscode.Uri) {
     }
   }
 
-  if (pathToGitDir) {
-    modifiedEnv[pathNameInEnv] =
-      pathToGitDir + path.delimiter + modifiedEnv[pathNameInEnv];
+  try {
+    const openOcdPath = await isBinInPath("openocd", modifiedEnv, [
+      "openocd-esp32",
+    ]);
+    if (openOcdPath) {
+      const openOcdDir = path.dirname(openOcdPath);
+      const openOcdScriptsPath = path.join(
+        openOcdDir,
+        "..",
+        "share",
+        "openocd",
+        "scripts"
+      );
+      const scriptsExists = await pathExists(openOcdScriptsPath);
+      if (scriptsExists && modifiedEnv.OPENOCD_SCRIPTS !== openOcdScriptsPath) {
+        modifiedEnv.OPENOCD_SCRIPTS = openOcdScriptsPath;
+      }
+    }
+  } catch (error) {
+    Logger.error(
+      `Error processing OPENOCD_SCRIPTS path: ${error.message}`,
+      error,
+      "appendIdfAndToolsToPath OPENOCD_SCRIPTS"
+    );
   }
-  if (pathToPigweed) {
-    modifiedEnv[pathNameInEnv] =
-      pathToPigweed + path.delimiter + modifiedEnv[pathNameInEnv];
+
+  if (
+    pathToGitDir &&
+    !modifiedEnv[pathNameInEnv].split(path.delimiter).includes(pathToGitDir)
+  ) {
+    modifiedEnv[pathNameInEnv] += path.delimiter + pathToGitDir;
+  }
+  if (
+    pathToPigweed &&
+    !modifiedEnv[pathNameInEnv].split(path.delimiter).includes(pathToPigweed)
+  ) {
+    modifiedEnv[pathNameInEnv] += path.delimiter + pathToPigweed;
   }
 
   if (
@@ -1258,35 +1303,58 @@ export async function appendIdfAndToolsToPath(curWorkspace: vscode.Uri) {
   return modifiedEnv;
 }
 
-export async function isBinInPath(
+export async function getAllBinPathInEnvPath(
   binaryName: string,
-  workDirectory: string,
   env: NodeJS.ProcessEnv
 ) {
-  const cmd = process.platform === "win32" ? "where" : "which";
-  try {
-    const result = await spawn(cmd, [binaryName], { cwd: workDirectory, env });
-    if (
-      result.toString() === "" ||
-      result.toString().indexOf("Could not find files") < 0
-    ) {
-      // Sometimes multiple paths can be returned. They are separated by new lines, get only the first one
-      const selectedResult = result.toString().split("\n")[0].trim();
-      return binaryName.localeCompare(selectedResult) === 0
-        ? ""
-        : selectedResult;
+  let pathNameInEnv: string = Object.keys(process.env).find(
+    (k) => k.toUpperCase() == "PATH"
+  );
+  const pathDirs = env[pathNameInEnv].split(path.delimiter);
+  const foundBinaries: string[] = [];
+  for (const pathDir of pathDirs) {
+    let binaryPath = path.join(pathDir, binaryName);
+    if (process.platform === "win32" && !binaryName.endsWith(".exe")) {
+      binaryPath = `${binaryPath}.exe`;
     }
-  } catch (error) {
-    let pathNameInEnv: string = Object.keys(process.env).find(
-      (k) => k.toUpperCase() == "PATH"
-    );
-    Logger.error(
-      `Cannot access binary filePath: ${binaryName}`,
-      error,
-      "src utils isBinInPath",
-      { envPath: pathNameInEnv ? env[pathNameInEnv] : undefined },
-      false
-    );
+    const doesPathExists = await pathExists(binaryPath);
+    if (doesPathExists) {
+      const pathStats = await stat(binaryPath);
+      if (pathStats.isFile() && canAccessFile(binaryPath, fs.constants.X_OK)) {
+        foundBinaries.push(binaryPath);
+      }
+    }
+  }
+  return foundBinaries;
+}
+
+export async function isBinInPath(
+  binaryName: string,
+  env: NodeJS.ProcessEnv,
+  containerDir?: string[]
+) {
+  let pathNameInEnv: string = Object.keys(process.env).find(
+    (k) => k.toUpperCase() == "PATH"
+  );
+  const pathDirs = env[pathNameInEnv].split(path.delimiter);
+  for (const pathDir of pathDirs) {
+    let binaryPath = path.join(pathDir, binaryName);
+    if (process.platform === "win32" && !binaryName.endsWith(".exe")) {
+      binaryPath = `${binaryPath}.exe`;
+    }
+    const doesPathExists = await pathExists(binaryPath);
+    if (doesPathExists) {
+      if (containerDir && containerDir.length) {
+        const resultContainerPath = containerDir.join(path.sep);
+        if (binaryPath.indexOf(resultContainerPath) === -1) {
+          return "";
+        }
+      }
+      const pathStats = await stat(binaryPath);
+      if (pathStats.isFile() && canAccessFile(binaryPath, fs.constants.X_OK)) {
+        return binaryPath;
+      }
+    }
   }
   return "";
 }
@@ -1339,7 +1407,7 @@ export async function createNewComponent(
   ) {
     const oldPath = path.join(...containerPath, oldName);
     const newPath = path.join(...containerPath, newName);
-    await move(oldPath, newPath);
+    await robustMove(oldPath, newPath);
   };
   const replaceContentInFile = async function (
     replacementStr: string,
@@ -1430,6 +1498,61 @@ export function markdownToWebviewHtml(
   }
   cleanHtml = cleanHtml.replace(/&lt;/g, "<").replace(/&gt;/g, ">");
   return cleanHtml;
+}
+
+/**
+ * Robust move function that handles Windows EPERM errors
+ * Falls back to copy + remove if rename fails
+ */
+export async function robustMove(
+  source: string,
+  destination: string
+): Promise<void> {
+  const maxRetries = 3;
+  const retryDelay = 1000; // 1 second
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await move(source, destination);
+      return; // Success, exit the function
+    } catch (error) {
+      // On Windows, EPERM errors are common when moving directories
+      if (error.code === "EPERM" || error.code === "EACCES") {
+        if (attempt === maxRetries) {
+          // Last attempt, use fallback method
+          const fallbackMsg = `Move operation failed with ${error.code} after ${maxRetries} attempts, falling back to copy + remove...`;
+          OutputChannel.init().appendLine(fallbackMsg);
+          Logger.info(fallbackMsg);
+
+          // Ensure destination directory doesn't exist
+          if (await pathExists(destination)) {
+            await remove(destination);
+          }
+
+          // Copy the directory
+          await copy(source, destination);
+
+          // Remove the source directory
+          await remove(source);
+
+          const successMsg = `Successfully moved directory using fallback method`;
+          OutputChannel.init().appendLine(successMsg);
+          Logger.info(successMsg);
+          return;
+        } else {
+          // Retry with delay
+          const retryMsg = `Move operation failed with ${error.code}, retrying in ${retryDelay}ms (attempt ${attempt}/${maxRetries})...`;
+          OutputChannel.init().appendLine(retryMsg);
+          Logger.error(retryMsg, new Error(retryMsg), "robustMove");
+          await new Promise((resolve) => setTimeout(resolve, retryDelay));
+        }
+      } else {
+        // Re-throw other errors immediately
+        const msg = error && error.message ? error.message : "Unknown error";
+        Logger.error(msg, error, "robustMove");
+      }
+    }
+  }
 }
 
 export function getUserShell() {

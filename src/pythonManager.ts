@@ -76,28 +76,36 @@ export async function getEnvVarsFromIdfTools(
   );
   modifiedEnv.IDF_TOOLS_PATH = idfToolsPath;
   modifiedEnv.IDF_PATH = espIdfPath;
-  const processResult = await utils.execChildProcess(
-    pythonBinPath,
-    args,
-    idfToolsPath,
-    OutputChannel.init(),
-    { cwd: idfToolsPath, env: modifiedEnv },
-    cancelToken
-  );
-
   let idfToolsDict: { [key: string]: string } = {};
-  const lines = processResult.trim().split(EOL);
-  for (const l of lines) {
-    let keyIndex = l.indexOf("=");
-    if (keyIndex === -1) {
-      continue;
+  try {
+    const processResult = await utils.execChildProcess(
+      pythonBinPath,
+      args,
+      idfToolsPath,
+      OutputChannel.init(),
+      { cwd: idfToolsPath, env: modifiedEnv },
+      cancelToken
+    );
+    const lines = processResult.trim().split(EOL);
+    for (const l of lines) {
+      let keyIndex = l.indexOf("=");
+      if (keyIndex === -1) {
+        continue;
+      }
+      let key = l.slice(0, keyIndex);
+      let val = l.slice(keyIndex + 1);
+      idfToolsDict[key] = val;
     }
-    let key = l.slice(0, keyIndex);
-    let val = l.slice(keyIndex + 1);
-    idfToolsDict[key] = val;
-  }
 
-  return idfToolsDict;
+    return idfToolsDict;
+  } catch (error) {
+    const msg =
+      error && error.message
+        ? error.message
+        : "Error at idf_tools.py export --format key-value";
+    Logger.errorNotify(msg, error, "getEnvVarsFromIdfTools");
+    return idfToolsDict;
+  }
 }
 
 export async function installPythonEnvFromIdfTools(
@@ -145,8 +153,7 @@ export async function installPythonEnvFromIdfTools(
     pythonBinPath,
     [idfToolsPyPath, "install-python-env"],
     pyTracker,
-    { env: modifiedEnv, cwd: idfToolsDir },
-    cancelToken
+    { env: modifiedEnv, cwd: idfToolsDir, cancelToken }
   );
 
   const virtualEnvPython = await getPythonEnvPath(
@@ -162,8 +169,11 @@ export async function installExtensionPyReqs(
   espDir: string,
   idfToolsDir: string,
   pyTracker?: PyReqLog,
-  opts?: { env: NodeJS.ProcessEnv; cwd: string },
-  cancelToken?: CancellationToken
+  opts?: {
+    env: NodeJS.ProcessEnv;
+    cwd: string;
+    cancelToken?: CancellationToken;
+  }
 ) {
   const reqDoesNotExists = " doesn't exist. Make sure the path is correct.";
   const debugAdapterRequirements = join(
@@ -220,13 +230,7 @@ export async function installExtensionPyReqs(
     "--extra-index-url",
     "https://dl.espressif.com/pypi",
   ];
-  await execProcessWithLog(
-    virtualEnvPython,
-    args,
-    pyTracker,
-    opts,
-    cancelToken
-  );
+  await execProcessWithLog(virtualEnvPython, args, pyTracker, opts);
 }
 
 export async function installEspMatterPyReqs(
@@ -240,7 +244,7 @@ export async function installEspMatterPyReqs(
   const modifiedEnv: { [key: string]: string } = <{ [key: string]: string }>(
     Object.assign({}, process.env)
   );
-  const opts = { env: modifiedEnv, cwd: idfToolsDir };
+  const opts = { env: modifiedEnv, cwd: idfToolsDir, cancelToken };
   const virtualEnvPython = await getPythonEnvPath(
     espDir,
     idfToolsDir,
@@ -271,31 +275,20 @@ export async function installEspMatterPyReqs(
     "--extra-index-url",
     "https://dl.espressif.com/pypi",
   ];
-  await execProcessWithLog(
-    virtualEnvPython,
-    args,
-    pyTracker,
-    opts,
-    cancelToken
-  );
+  await execProcessWithLog(virtualEnvPython, args, pyTracker, opts);
   return virtualEnvPython;
 }
 export async function execProcessWithLog(
   cmd: string,
   args: string[],
   pyTracker?: PyReqLog,
-  opts?: { env: NodeJS.ProcessEnv; cwd: string },
-  cancelToken?: CancellationToken
+  opts?: {
+    env: NodeJS.ProcessEnv;
+    cwd: string;
+    cancelToken?: CancellationToken;
+  }
 ) {
-  const processResult = await utils.spawn(
-    cmd,
-    args,
-    opts,
-    undefined,
-    undefined,
-    cancelToken,
-    undefined
-  );
+  const processResult = await utils.spawn(cmd, args, opts);
   Logger.info(processResult + "\n");
   if (pyTracker) {
     pyTracker.Log = processResult + "\n";
@@ -458,44 +451,6 @@ export async function checkPythonExists(pythonBin: string, workingDir: string) {
   return false;
 }
 
-export async function checkPipExists(pyBinPath: string, workingDir: string) {
-  try {
-    const args = ["-m", "pip", "--version"];
-    const pipResult = await utils.execChildProcess(pyBinPath, args, workingDir);
-    if (pipResult) {
-      const match = pipResult.match(/pip\s\d+(.\d+)?(.\d+)?/g);
-      if (match && match.length > 0) {
-        return true;
-      }
-    }
-  } catch (error) {
-    const newErr =
-      error && error.message
-        ? error
-        : new Error("Pip is not found in current environment");
-    Logger.error(newErr.message, newErr, "pythonManager checkPipExists");
-  }
-  return false;
-}
-
-export async function checkVenvExists(pyBinPath: string, workingDir: string) {
-  try {
-    const pipResult = await utils.execChildProcess(
-      pyBinPath,
-      ["-c", "import venv"],
-      workingDir
-    );
-    return true;
-  } catch (error) {
-    const newErr =
-      error && error.message
-        ? error
-        : new Error("Venv is not found in current environment");
-    Logger.error(newErr.message, newErr, "pythonManager checkVenvExists");
-  }
-  return false;
-}
-
 export async function getPythonBinList(workingDir: string) {
   if (process.platform === "win32") {
     return [];
@@ -510,27 +465,19 @@ export async function getUnixPythonList(workingDir: string) {
     let python3Versions: string[] = [];
 
     try {
-      const pythonVersionsRaw = await utils.execChildProcess(
-        "which",
-        ["-a", "python"],
-        workingDir
+      pythonVersions = await utils.getAllBinPathInEnvPath(
+        "python",
+        process.env
       );
-      pythonVersions = pythonVersionsRaw.trim()
-        ? pythonVersionsRaw.trim().split("\n")
-        : [];
     } catch (pythonError) {
       Logger.warn("Error finding python versions", pythonError);
     }
 
     try {
-      const python3VersionsRaw = await utils.execChildProcess(
-        "which",
-        ["-a", "python3"],
-        workingDir
+      python3Versions = await utils.getAllBinPathInEnvPath(
+        "python3",
+        process.env
       );
-      python3Versions = python3VersionsRaw.trim()
-        ? python3VersionsRaw.trim().split("\n")
-        : [];
     } catch (python3Error) {
       Logger.warn("Error finding python3 versions", python3Error);
     }

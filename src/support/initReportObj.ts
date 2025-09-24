@@ -39,6 +39,8 @@ export function initializeReportObject() {
     serialPort: undefined,
     sysPythonBinPath: undefined,
     openOcdConfigs: undefined,
+    openOCDDebugLevel: undefined,
+    openOcdLaunchArgs: undefined,
     toolsPath: undefined,
     gitPath: undefined,
   };
@@ -113,6 +115,7 @@ export function initializeReportObject() {
     systemName: undefined,
     vscodeVersion: undefined,
     remoteName: undefined,
+    appName: undefined,
   };
   report.workspaceFolder = undefined;
   report.projectConfigurations = {};

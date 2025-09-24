@@ -23,6 +23,7 @@ import { ESP } from "../config";
 import * as idfConf from "../idfConfiguration";
 import { ensureDir } from "fs-extra";
 import path from "path";
+import * as fs from "fs";
 import {
   CancellationToken,
   ConfigurationTarget,
@@ -281,9 +282,8 @@ export class SetupPanel {
             });
             SetupPanel.postMessage({
               command: "setEspIdfErrorStatus",
-              errorMsg: `ESP-IDF is installed in ${
-                setupArgs.existingIdfSetups[message.selectedIdfSetup].idfPath
-              }`,
+              errorMsg: `ESP-IDF is installed in ${setupArgs.existingIdfSetups[message.selectedIdfSetup].idfPath
+                }`,
             });
             this.panel.webview.postMessage({
               command: "updateEspIdfToolsStatus",
@@ -320,46 +320,48 @@ export class SetupPanel {
         case "importProject":
           await commands.executeCommand("espIdf.importProject");
           break;
-        case "showExamples":
-          await commands.executeCommand("espIdf.examples.start");
-          break;
         case "exploreComponents":
           await commands.executeCommand("esp.component-manager.ui.show");
           break;
         case "canAccessFile":
-          if (message.path) {
-            const pathIdfPy = path.join(message.path, "tools", "idf.py");
-            const fileExists = await canAccessFile(pathIdfPy);
-            if (!fileExists) {
-              this.panel.webview.postMessage({
-                command: "canAccessFileResponse",
-                path: message.path,
-                exists: fileExists,
-              });
-            } else {
-              let versionEspIdf;
-              if (
-                message.currentVersion &&
-                typeof message.currentVersion === "string"
-              ) {
-                versionEspIdf = message.currentVersion;
-              } else {
-                versionEspIdf = await getEspIdfFromCMake(message.path);
-              }
-              // compareVersion returns a negative value if versionEspIdf is less than "5.0"
-              const noWhiteSpaceSupport =
-                compareVersion(versionEspIdf, "5.0") < 0;
-              const hasWhitespace = /\s/.test(message.path);
-              this.panel.webview.postMessage({
-                command: "canAccessFileResponse",
-                path: message.path,
-                exists: fileExists,
-                noWhiteSpaceSupport,
-                hasWhitespace,
-              });
-            }
+          if (!message.path) {
+            break;
           }
+
+          const pathIdfPy = path.join(message.path, "tools", "idf.py");
+          // Only require read and execute permissions
+          const fileExists = await canAccessFile(pathIdfPy, fs.constants.R_OK | fs.constants.X_OK);
+          if (!fileExists) {
+            this.panel.webview.postMessage({
+              command: "canAccessFileResponse",
+              path: pathIdfPy,
+              exists: fileExists,
+            });
+            break;
+          }
+
+          let versionEspIdf: string;
+          if (
+            message.currentVersion &&
+            typeof message.currentVersion === "string"
+          ) {
+            versionEspIdf = message.currentVersion;
+          } else {
+            versionEspIdf = await getEspIdfFromCMake(message.path);
+          }
+          // compareVersion returns a negative value if versionEspIdf is less than "5.0"
+          const noWhiteSpaceSupport =
+            compareVersion(versionEspIdf, "5.0") < 0;
+          const hasWhitespace = /\s/.test(message.path);
+          this.panel.webview.postMessage({
+            command: "canAccessFileResponse",
+            path: pathIdfPy,
+            exists: fileExists,
+            noWhiteSpaceSupport,
+            hasWhitespace,
+          });
           break;
+
         default:
           break;
       }
@@ -426,7 +428,7 @@ export class SetupPanel {
     ) as string;
     const progressLocation =
       notificationMode === idfConf.NotificationMode.All ||
-      notificationMode === idfConf.NotificationMode.Notifications
+        notificationMode === idfConf.NotificationMode.Notifications
         ? ProgressLocation.Notification
         : ProgressLocation.Window;
     return await window.withProgress(
@@ -466,6 +468,7 @@ export class SetupPanel {
             const embedPaths = await this.installEmbedPyGit(
               toolsPath,
               idfVersion,
+              mirror,
               progress,
               cancelToken
             );
@@ -559,7 +562,7 @@ export class SetupPanel {
     ) as string;
     const progressLocation =
       notificationMode === idfConf.NotificationMode.All ||
-      notificationMode === idfConf.NotificationMode.Notifications
+        notificationMode === idfConf.NotificationMode.Notifications
         ? ProgressLocation.Notification
         : ProgressLocation.Window;
     return await window.withProgress(
@@ -585,6 +588,7 @@ export class SetupPanel {
             const embedPaths = await this.installEmbedPyGit(
               toolsPath,
               idfVersion,
+              mirror,
               progress,
               cancelToken
             );
@@ -628,7 +632,7 @@ export class SetupPanel {
     ) as string;
     const progressLocation =
       notificationMode === idfConf.NotificationMode.All ||
-      notificationMode === idfConf.NotificationMode.Notifications
+        notificationMode === idfConf.NotificationMode.Notifications
         ? ProgressLocation.Notification
         : ProgressLocation.Window;
     return await window.withProgress(
@@ -669,10 +673,16 @@ export class SetupPanel {
   private async installEmbedPyGit(
     toolsPath: string,
     idfVersion: string,
+    mirror: ESP.IdfMirror,
     progress: Progress<{ message: string; increment?: number }>,
     cancelToken: CancellationToken
   ) {
-    const idfGitPath = await installIdfGit(toolsPath, progress, cancelToken);
+    const idfGitPath = await installIdfGit(
+      toolsPath,
+      mirror,
+      progress,
+      cancelToken
+    );
     SetupPanel.postMessage({
       command: "updateIdfGitStatus",
       status: StatusType.installed,
@@ -680,6 +690,7 @@ export class SetupPanel {
     const idfPythonPath = await installIdfPython(
       toolsPath,
       idfVersion,
+      mirror,
       progress,
       cancelToken
     );

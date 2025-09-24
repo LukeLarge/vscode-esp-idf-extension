@@ -76,7 +76,6 @@ suite("Project tests", () => {
     );
     const compilerAbsolutePath = await isBinInPath(
       "xtensa-esp32-elf-gcc",
-      targetFolder,
       process.env
     );
     let compilerRelativePath = compilerAbsolutePath.split(
@@ -125,7 +124,7 @@ suite("Project tests", () => {
   test("get templates projects", async () => {
     const templatesCategories = getExamplesList(
       mockUpContext.extensionPath,
-      "templates"
+      ["templates"]
     );
     assert.notEqual(templatesCategories, undefined);
     assert.notEqual(templatesCategories.examples, undefined);
